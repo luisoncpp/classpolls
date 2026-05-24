@@ -21,3 +21,4 @@ Avoid: "bug description + fix". Prefer: "what I learned that applies to future w
 
 | File | Topic | Date |
 |------|-------|------|
+| `local-mongodb-dev-latency.md` | MongoDB + Workers local dev latency and secret config management | 2026-05-24 |

@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD) & Technical Specification
 
-**Project:** ClassPulse (Ephemeral Student Interaction App)  
+**Project:** ClassPolls (Ephemeral Student Interaction App)  
 **Author/Developer:** Conceptual Design Stage  
 **License:** GPLv3 Dual-Licensing / CC BY-NC  
 
@@ -8,9 +8,9 @@
 
 ## 1. Executive Summary & Vision
 
-**ClassPulse** is an open-source, ultra-low friction classroom interaction tool designed to solve the "dark screen syndrome" in online education. When instructors share their screen via platforms like Discord or OBS, their ability to gauge student comprehension drops dramatically due to a lack of visual feedback.
+**ClassPolls** is an open-source, ultra-low friction classroom interaction tool designed to solve the "dark screen syndrome" in online education. When instructors share their screen via platforms like Discord or OBS, their ability to gauge student comprehension drops dramatically due to a lack of visual feedback.
 
-Unlike heavy alternative solutions (e.g., Kahoot, Mentimeter) which require tedious pre-class configuration or rigid slideshow frameworks, ClassPulse prioritizes **zero-friction improvisation**. It enables instructors to plan templates ahead of time or sketch questions verbally on-the-fly, pushing them to students' browsers within two clicks. To ensure absolute psychological safety and maximum engagement, all student interactions are completely anonymous.
+Unlike heavy alternative solutions (e.g., Kahoot, Mentimeter) which require tedious pre-class configuration or rigid slideshow frameworks, ClassPolls prioritizes **zero-friction improvisation**. It enables instructors to plan templates ahead of time or sketch questions verbally on-the-fly, pushing them to students' browsers within two clicks. To ensure absolute psychological safety and maximum engagement, all student interactions are completely anonymous.
 
 > **Core Development Constraint:** The entire production deployment must operate gracefully within the **100% Free Tiers** of modern serverless and cloud providers, avoiding any ongoing maintenance or computing costs while remaining highly scalable for thousands of concurrent sessions.
 
@@ -32,7 +32,7 @@ To satisfy the strict cost constraints ($0 USD operating cost) and eliminate dep
 ## 3. System Architecture & Lifecycle Model
 
 ### 3.1 The Ephemeral Session Architecture
-To preserve simplicity and data privacy, ClassPulse operates strictly on an **ephemeral room model**. Virtual rooms are created dynamically when an instructor clicks "Start Class," and completely dissolve upon termination. Live data calculations stay structured within single active collection entries, removing multi-table joins or distributed state sync issues.
+To preserve simplicity and data privacy, ClassPolls operates strictly on an **ephemeral room model**. Virtual rooms are created dynamically when an instructor clicks "Start Class," and completely dissolve upon termination. Live data calculations stay structured within single active collection entries, removing multi-table joins or distributed state sync issues.
 
 ### 3.2 Database Schema Design
 The entire history, configurations, and current live voting state are combined into a single, cohesive document within the `sessions` collection:

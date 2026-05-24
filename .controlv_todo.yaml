@@ -1,1 +1,29 @@
-tasks: []
+tasks:
+  - id: task-1779607980816-691
+    title: Implement backend DB public interface methods for sessions
+    status: pending
+    createdAt: 1779607980816
+  - id: task-1779607982775-652
+    title: Implement backend session management routes (src/handlers/sessions.ts)
+    status: pending
+    createdAt: 1779607982775
+  - id: task-1779608155482-763
+    title: "Phase 1: Configure Google Cloud OAuth Client ID (Manual Step)"
+    status: pending
+    createdAt: 1779608155482
+  - id: task-1779608156370-287
+    title: "Phase 2: Install and configure Vitest for Cloudflare Workers"
+    status: pending
+    createdAt: 1779608156370
+  - id: task-1779608157194-463
+    title: "Phase 3: Write tests for session management routes"
+    status: pending
+    createdAt: 1779608157194
+  - id: task-1779608157809-557
+    title: "Phase 4: Install and configure Vitest for Frontend Preact"
+    status: pending
+    createdAt: 1779608157809
+  - id: task-1779608158521-413
+    title: "Phase 4: Write tests for Frontend SessionPollingController"
+    status: pending
+    createdAt: 1779608158521

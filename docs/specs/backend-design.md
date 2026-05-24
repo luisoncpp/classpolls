@@ -1,29 +1,92 @@
-# Backend Technical Specification (Cloudflare Workers + MongoDB Atlas Data API)
+# Backend Technical Specification (Cloudflare Workers + MongoDB Driver)
 
 ## 1. Architectural Overview
-The backend operates as a stateless REST API deployed on Cloudflare Workers. It acts as an API gateway and business logic validator that translates incoming client HTTPS requests into standard MongoDB Atlas Data API HTTP commands (`findOne`, `insertOne`, `updateOne`, `deleteOne`).
+The backend is a stateless REST API deployed on Cloudflare Workers. It performs request validation, auth, and session business rules while talking directly to MongoDB Atlas through the official `mongodb` driver. The Worker enables `nodejs_compat` so the driver can use TCP sockets from the Workers runtime.
+
+For authentication, the backend validates Google ID Tokens (JWTs) using Google's public JWKS.
+
+### 1.1 Routing
+Dispatch from `src/index.ts` uses the runtime-native `URLPattern` API (no router dependency). Each handler module exports matcher logic returning `Response | null`; `index.ts` tries handlers in order and falls through to a 404. Path parameters (`:roomCode`, `:planId`, `:questionId`) come from `URLPattern.exec(url).pathname.groups`.
+
+### 1.2 Directory Layout
+```text
+backend/src/
+├── index.ts              # URLPattern dispatch + CORS wrapper + error envelope
+├── auth/
+│   └── google.ts         # jose-based ID token verification
+├── handlers/
+│   ├── _shared.ts        # error helpers, auth extraction, normalization
+│   ├── auth.ts           # POST /api/auth/google
+│   ├── plans.ts          # /api/plans/*
+│   └── sessions.ts       # /api/sessions/*
+└── db/
+    ├── index.ts          # Public interface — all DB functions live here
+    └── Private/
+        └── client.ts     # MongoClient bootstrap/cache — never imported outside db/
+```
 
 ---
 
-## 2. Data Model & Database Operations
+## 2. Cross-Cutting Conventions
 
-### 2.1 MongoDB Atlas Schema Structures
+### 2.1 CORS
+- All responses include `Access-Control-Allow-Origin: *`.
+- `OPTIONS` preflight returns `Allow-Methods: GET, POST, DELETE, OPTIONS` and `Allow-Headers: Content-Type, Authorization`.
+- The CORS wrapper lives in `src/index.ts` and is applied to every non-OPTIONS response, including errors.
 
-**Collection: `instructors`**
+### 2.2 Error Envelope
+Every non-2xx response uses exactly:
+
+```json
+{ "error": { "code": "VOTE_EXPIRED", "message": "Voting window closed" } }
+```
+
+- `code` is stable `UPPER_SNAKE_CASE`.
+- `message` is human-readable.
+- Status codes: `400`, `401`, `403`, `404`, `409`, `500`.
+
+### 2.3 Timestamps on the Wire
+MongoDB documents use native `Date` values in the backend. Handlers normalize them to plain ISO strings before responding. The frontend never sees raw driver objects.
+
+### 2.4 Identifier Formats
+- `instructorToken`: `st_` + 32 hex chars from `crypto.getRandomValues(new Uint8Array(16))`
+- `studentId`: client-generated UUIDv4
+- `questionId`: `q_${Date.now()}`
+- `roomCode`: see §2.5
+
+### 2.5 `roomCode` Generation & Collisions
+4-character uppercase alphanumeric excluding ambiguous chars (`0/O`, `1/I/L`).
+
+- `sessions.roomCode` must have a unique index in MongoDB.
+- `createSession` should retry a few times on duplicate-key errors.
+- Exhaustion returns `409 ROOM_CODE_EXHAUSTED`.
+
+### 2.6 Auth Extraction
+Protected endpoints read `Authorization: Bearer <instructorToken>`. `requireToken(req)` throws `401 MISSING_TOKEN` if absent.
+
+---
+
+## 3. Data Model
+
+### 3.1 Collections
+
+**`instructors`**
 ```json
 {
-  "_id": {"$oid": "645f782c9f1a..."},
-  "username": "prof_smith",
-  "passwordHash": "$2b$10$...",
+  "_id": "ObjectId",
+  "googleId": "10984392483...",
+  "email": "prof.smith@university.edu",
+  "name": "Prof. Smith",
+  "picture": "https://lh3.googleusercontent.com/a/...",
   "instructorToken": "st_5a2f8c9b3e10...",
-  "createdAt": {"$date": "2026-05-23T19:00:00.000Z"}
+  "createdAt": "Date"
 }
 ```
 
-**Collection: `plans`**
+**`plans`**
 ```json
 {
-  "_id": {"$oid": "821a782c9f1a..."},
+  "_id": "ObjectId",
   "instructorToken": "st_5a2f8c9b3e10...",
   "title": "Data Structures 101",
   "questions": [
@@ -38,27 +101,27 @@ The backend operates as a stateless REST API deployed on Cloudflare Workers. It 
 }
 ```
 
-**Collection: `sessions` (Ephemeral Rooms)**
+**`sessions`**
 ```json
 {
-  "_id": {"$oid": "645f782c9f1a2c3b4e5f6a7b"},
+  "_id": "ObjectId",
   "roomCode": "NXKB",
   "instructorToken": "st_5a2f8c9b3e10...",
-  "planId": "821a782c9f1a...", 
+  "planId": "64f...",
   "status": "active",
-  "createdAt": {"$date": "2026-05-23T19:00:00.000Z"},
+  "createdAt": "Date",
   "questions": [
     {
       "questionId": "q_1716490800",
-      "text": "What is the time complexity of a binary search tree lookup in the worst case?",
+      "text": "...",
       "choices": ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
       "timeLimit": 60,
       "correctChoiceIndex": 1,
       "isActive": true,
-      "startedAt": {"$date": "2026-05-23T19:15:00.000Z"},
-      "votes": { 
-        "student_5f8a9": 2, 
-        "student_1b2c3": 1 
+      "startedAt": "Date",
+      "votes": {
+        "student_5f8a9": 2,
+        "student_1b2c3": 1
       }
     }
   ]
@@ -67,102 +130,129 @@ The backend operates as a stateless REST API deployed on Cloudflare Workers. It 
 
 ---
 
-## 3. Deep Module: Database Client Interface (`backend/src/db/`)
-Following the project's strict architectural guidelines, database connectivity is encapsulated inside a deep module.
+## 4. Deep Module: Database Client Interface
 
-- **Public Interface (`backend/src/db/index.ts`):** Exports clean async functions handling specific domain tasks.
-- **Private Components (`backend/src/db/Private/`):** Houses Atlas Data API endpoint invocation mechanics.
-- All public functions are limited to a maximum of 3 parameters. Extended payloads wrap parameters into atomic configuration objects.
+### 4.1 Private Connection Layer
+`backend/src/db/Private/client.ts` owns Mongo connection bootstrap.
+
+- `MongoClient` is cached in module scope.
+- The backend passes a `DbContext` containing `uri` and `database`.
+- Route handlers never import the private client directly.
+
+### 4.2 Public DB Surface
+Public functions in `backend/src/db/index.ts` wrap domain operations and hide driver details:
+
+```ts
+getInstructorByGoogleId(ctx, googleId)
+upsertInstructor(ctx, googleId, profile)
+
+listPlans(ctx, token)
+createPlan(ctx, token, title)
+getPlan(ctx, token, planId)
+getPlanById(ctx, planId)
+deletePlan(ctx, token, planId)
+addQuestionToPlan(ctx, planId, payload)
+removeQuestionFromPlan(ctx, planId, payload)
+
+createSession(ctx, token, payload)
+getSession(ctx, roomCode)
+getSessionStats(ctx, token, roomCode)
+addCustomQuestion(ctx, roomCode, payload)
+activateQuestion(ctx, roomCode, payload)
+deactivateQuestion(ctx, roomCode, instructorToken)
+registerVote(ctx, roomCode, vote)
+closeSession(ctx, roomCode, instructorToken)
+```
+
+### 4.3 Test Injection Pattern
+Tests mock the public `db/index.ts` boundary with `vi.mock('../src/db/index')` and assert handler behavior against that public contract. They do not assert driver internals or socket behavior.
+
+### 4.4 Atomicity Rule
+`activateQuestion`, `deactivateQuestion`, and `registerVote` should use single Mongo update operations with `arrayFilters` so state changes remain atomic.
 
 ---
 
-## 4. REST API Endpoint Catalog
+## 5. REST API Endpoint Catalog
 
-### 4.1 Instructor Domain
+### 5.1 Authentication Domain
 
-#### `POST /api/instructors/register`
-- **Description:** Registers a new instructor account.
-- **Payload:** `{ username, password }`
-- **Database Action:** Creates an entry returning an `instructorToken`.
+#### `POST /api/auth/google`
+- Verifies Google ID token.
+- Upserts the instructor by `googleId`.
+- Returns `{ instructorToken }`.
 
-### 4.2 Plan Management Domain
+### 5.2 Plan Management Domain
 
 #### `GET /api/plans`
-- **Description:** Lists all plans created by the instructor.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Database Action:** `find` matching the `instructorToken`, returning projected metadata (e.g., title, id).
+- Lists plans for the instructor.
+- Returns projected metadata only.
 
 #### `POST /api/plans`
-- **Description:** Creates a reusable class plan.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Payload:** `{ title: string }`
-- **Database Action:** `insertOne` returning the new `planId`.
+- Creates a plan.
+- Returns `{ planId }`.
 
 #### `GET /api/plans/:planId`
-- **Description:** Visualizes a specific plan and its full catalogue of questions.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Database Action:** `findOne` matching `planId`.
+- Returns one instructor-owned plan.
 
 #### `DELETE /api/plans/:planId`
-- **Description:** Deletes a complete plan.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Database Action:** `deleteOne` matching `planId`.
+- Deletes one instructor-owned plan.
 
 #### `POST /api/plans/:planId/questions`
-- **Description:** Adds a predefined question to a plan.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Payload:** `{ text: string, choices: string[], timeLimit?: number, correctChoiceIndex?: number }`
-- **Database Action:** `updateOne` using `$push`.
+- Adds a question with validation.
 
 #### `DELETE /api/plans/:planId/questions/:questionId`
-- **Description:** Removes a specific question from a plan's catalogue.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Database Action:** `updateOne` using `$pull` on the questions array.
+- Removes one question from the plan.
 
-### 4.3 Session (Room) Management Domain
+### 5.3 Session Management Domain
 
 #### `POST /api/sessions`
-- **Description:** Initializes an active ephemeral room, optionally linked to a plan.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Payload:** `{ planId?: string }`
-- **Database Action:** `insertOne`. Generates a 4-character `roomCode`. Copies the plan's questions into the session with `isActive: false` and `votes: {}`.
+- Creates a live room.
+- Optionally copies plan questions with `isActive: false` and `votes: {}`.
 
 #### `POST /api/sessions/:roomCode/questions/custom`
-- **Description:** Pushes an improvised custom question to the live room.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Payload:** `{ text: string, choices: string[], timeLimit?: number, correctChoiceIndex?: number }`
-- **Database Action:** `updateOne` using `$push` to append the new question to the room's array. Optionally activates it immediately.
+- Pushes a custom live-room question.
 
 #### `POST /api/sessions/:roomCode/questions/:questionId/activate`
-- **Description:** Pushes a specific question live. Injects `startedAt` timestamp if a `timeLimit` exists.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Database Action:** `updateOne` modifying the array elements so only the target `questionId` is active.
+- Activates one question and deactivates others.
 
 #### `POST /api/sessions/:roomCode/questions/deactivate`
-- **Description:** Closes voting on the currently active question without closing the whole room.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Database Action:** `updateOne` setting `isActive = false` where `isActive == true`.
+- Deactivates the currently active question.
 
 #### `GET /api/sessions/:roomCode/stats`
-- **Description:** Fetches complete statistics and vote dictionaries for the dashboard.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Database Action:** `findOne` filtering by `roomCode`.
+- Returns full instructor-facing stats including vote maps.
 
 #### `POST /api/sessions/:roomCode/close`
-- **Description:** Terminates the session completely.
-- **Headers:** `Authorization: Bearer <instructorToken>`
-- **Database Action:** `updateOne` setting `status = "closed"`.
+- Sets `status = "closed"`.
 
-### 4.4 Student Domain (Public/Anonymous)
+### 5.4 Student Domain
 
 #### `GET /api/sessions/:roomCode`
-- **Description:** Polled by student clients and OBS overlay.
-- **Query Params:** `?studentId=<uuid>` (optional).
-- **Security Constraint:** Strips away `instructorToken` and the full `votes` object. If `studentId` is provided and the question is active, returns a vote status. Overlays should skip providing `studentId`.
-- **Database Action:** `findOne` with projection.
+- Public polling endpoint.
+- Strips `instructorToken` and full `votes`.
+- Injects `myVote` when `studentId` is provided.
+
+Authoritative response shape:
+
+```json
+{
+  "roomCode": "NXKB",
+  "status": "active",
+  "createdAt": "2026-05-23T19:00:00.000Z",
+  "questions": [
+    {
+      "questionId": "q_1716490800",
+      "text": "What is the time complexity of a binary search tree lookup in the worst case?",
+      "choices": ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
+      "timeLimit": 60,
+      "correctChoiceIndex": 1,
+      "isActive": true,
+      "startedAt": "2026-05-23T19:15:00.000Z",
+      "myVote": 2
+    }
+  ]
+}
+```
 
 #### `POST /api/sessions/:roomCode/vote`
-- **Description:** Transmits an anonymous choice.
-- **Payload:** `{ questionId: string, choiceIndex: number, studentId: string }`
-- **Validation:** Verifies `status == "active"`, question `isActive == true`, and current time vs `startedAt + timeLimit`.
-- **Database Action:** Atomic execution via `updateOne` utilizing `$set` to map `votes.<studentId> = choiceIndex`.
+- Writes a student vote for the active question.
+- Rejects expired/inactive/closed states with `409`.

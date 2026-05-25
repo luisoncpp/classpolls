@@ -1,4 +1,4 @@
-import { setMaxListeners } from 'node:events';
+import { EventEmitter, setMaxListeners } from 'node:events';
 import { Db, MongoClient } from 'mongodb';
 
 export interface DbContext {
@@ -9,8 +9,10 @@ export interface DbContext {
 
 let state: { client: MongoClient } | null = null;
 
-// The Mongo driver adds multiple timeout listeners in Workers dev.
-setMaxListeners(20);
+// The Mongo driver adds many timeout listeners in Workers local dev.
+// This warning is noisy in Miniflare and does not indicate a leak by itself.
+EventEmitter.defaultMaxListeners = 100;
+setMaxListeners(100);
 
 function createClient(uri: string): MongoClient {
   return new MongoClient(uri, {

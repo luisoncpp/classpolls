@@ -5,4 +5,6 @@ Canonical technical guides — the single source of truth for each subsystem's d
 | File | Subsystem | Notes |
 |------|-----------|-------|
 | `backend-db.md` | Database Deep Module | Rules and structure for MongoDB driver interactions in Workers. |
-| `backend-auth.md` | Authentication Flow | Google ID Token validation and edge-friendly JWT verification. |
+| `backend-auth.md` | Authentication Flow | Google ID Token validation, token generation, cross-tenant isolation. |
+| `backend-sessions.md` | Session Lifecycle | Create → activate → deactivate → close, student vs instructor projections, vote registration. |
+| `frontend-polling.md` | Frontend Polling & Identity | SessionPollingController, VoteDispatcher, apiClient, identity bootstrap. |

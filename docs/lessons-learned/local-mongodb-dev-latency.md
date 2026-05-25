@@ -13,6 +13,8 @@ Miniflare's simulated Workers environment (particularly on Windows) does not han
 - **Use `wrangler dev --remote`** instead of local Miniflare when testing against real MongoDB. The remote worker runs on Cloudflare's network and has realistic network performance.
 - **Use non-SRV connection strings** (`mongodb://` instead of `mongodb+srv://`) for local dev on Windows. Miniflare has issues with SRV DNS resolution that can cause hangs or timeouts.
 - **Accept the latency for local dev**. If you must use `wrangler dev` (local), treat the 2-6s per request as a known environmental limitation, not a code problem.
+- **Avoid overlapping poll requests in the frontend**. A 3s `setInterval` against 6-8s local responses stacks concurrent Mongo-backed requests quickly and can trigger "hung request" cancellations and EventEmitter timeout-listener warnings.
+- **Raise Node's default listener cap for local Mongo testing**. The MongoDB driver can attach more than 20 timeout listeners under `wrangler dev`, so a low global cap produces false-positive `Possible EventEmitter memory leak detected` warnings.
 
 ## What Didn't Help
 

@@ -137,7 +137,7 @@ Stop if: any student-facing response leaks `instructorToken`/`votes`, expired vo
 
 ---
 
-## Phase 4: Frontend Testing Infrastructure & TDD
+## ✅ Phase 4: Frontend Testing Infrastructure & TDD (Completed)
 ### 4.1 Tooling Installation
 - **Libraries**: `vitest`, `jsdom`, `@testing-library/preact`, `@testing-library/jest-dom`
 - **Config**: `frontend/vitest.config.ts` with alias resolution and DOM simulation.
@@ -156,6 +156,15 @@ Signature per `docs/specs/frontend-design.md`: `new SessionPollingController(roo
 ### 🔎 Verify (Phase 4)
 - `npm run test` in `frontend/` runs and the new suites fail with implementation-missing errors, not config errors (jsdom up, alias resolution working).
 
+### Notes on Phase 4 completion
+
+- Added `vitest` + `jsdom` frontend test setup.
+- Added test coverage for identity persistence and polling lifecycle/fetch behavior.
+
+### Verify result
+
+- `npm run test` failed with missing-implementation import errors for `identity.ts` and `SessionPollingController.ts`, confirming the test layer was wired before Phase 5 implementation.
+
 ---
 
 ## Phase 5: Frontend Component Architecture
@@ -170,6 +179,15 @@ Signature per `docs/specs/frontend-design.md`: `new SessionPollingController(roo
 - **`instructor/Dashboard.tsx`**: Google Identity Services button → `POST /api/auth/google` → store `instructorToken` in `localStorage`. Lists plans from `GET /api/plans`. Routes to `ClassroomControls.tsx`.
 - **`student/RoomJoin.tsx` & `Grid.tsx`**: Anonymous. Read active question choices from polling state; `POST /vote` on click; lock buttons optimistically and confirm against server-returned vote field.
 - **`overlay/OBSOverlay.tsx`**: No inputs. Interpolates countdown `startedAt + timeLimit - Date.now()`. When `isActive` flips to `false` and `correctChoiceIndex` is set, highlights the correct bar.
+
+### Notes on current implementation
+
+- Added `common/apiClient.ts`, `common/identity.ts`, `common/SessionPollingController.ts`, and `common/session.ts`.
+- Added route wiring in `frontend/src/main.tsx` for `/`, `/instructor`, and `/overlay/:roomCode`.
+- Implemented student join/poll/vote flow with optimistic locking via `student/Private/VoteDispatcher.ts`.
+- Implemented instructor sign-in, plan listing/creation/deletion, session creation, custom questions, activation, close, and stats polling.
+- Implemented overlay polling, countdown interpolation, and correct-answer reveal.
+- Public overlay result bars are constrained by the current backend contract: `GET /api/sessions/:roomCode` strips vote maps and does not expose aggregate counts.
 
 ### 🔎 Verify (5.2) — incremental per view
 Don't wait until all three views exist. Verify each as it lands:
@@ -200,8 +218,8 @@ Stop if: any view shows stale data after a state change, the overlay reveals int
 
 ---
 
-## Phase 6: Architecture Documentation (Mandatory per WORKFLOW.md)
-After implementation lands and tests pass:
+## ✅ Phase 6: Architecture Documentation (Completed)
+The following were documented after Phase 5 implementation and verification:
 
 1. **Update existing docs**:
    - `docs/architecture/backend-db.md` — extend with the new public DB surface from Phase 3.2.

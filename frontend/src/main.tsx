@@ -1,10 +1,14 @@
 import { render } from 'preact';
 
-const app = (
-  <div>
-    <h1>ClassPolls</h1>
-    <p>Frontend dev server running. Open console to verify env vars.</p>
-  </div>
-);
+import { Dashboard } from './instructor';
+import { OBSOverlay } from './overlay';
+import { RoomJoin } from './student';
 
-render(app, document.getElementById('app')!);
+render(<AppRouter />, document.getElementById('app')!);
+
+function AppRouter() {
+  const pathname = window.location.pathname;
+  if (pathname === '/instructor') return <Dashboard />;
+  if (pathname.startsWith('/overlay/')) return <OBSOverlay roomCode={pathname.slice('/overlay/'.length).toUpperCase()} />;
+  return <RoomJoin />;
+}

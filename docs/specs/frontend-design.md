@@ -13,37 +13,56 @@
 Student and instructor modules rely on clean state controller entities.
 
 ```ts
-export class SessionPollingController {
-  private timerId: number | null = null;
-  private currentRoomCode: string;
-  private studentId?: string;
-  private onUpdateCallback: (data: any) => void;
+const POLL_INTERVAL_IN_MS = 3000;
 
-  constructor(roomCode: string, onUpdate: (data: any) => void, studentId?: string) {
-    this.currentRoomCode = roomCode;
-    this.studentId = studentId;
-    this.onUpdateCallback = onUpdate;
+type SessionUpdate = { pollError: { status: number } } | PublicSession;
+type OnUpdate = (data: SessionUpdate) => void;
+
+export class SessionPollingController {
+  private inFlight = false;
+  private timerId: number | null = null;
+
+  constructor(
+    private currentRoomCode: string,
+    private onUpdateCallback: OnUpdate,
+    private studentId?: string
+  ) {}
+
+  public pollNow(): void {
+    void this.fetchState();
   }
 
   public startPolling(): void {
-    if (this.timerId) return;
+    if (this.timerId !== null) return;
     this.timerId = window.setInterval(
-      /*handler=*/ () => this.fetchState(),
-      /*delayInMs=*/ 3000
+      /*pollSession=*/ () => void this.fetchState(),
+      /*delayInMs=*/ POLL_INTERVAL_IN_MS
     );
   }
 
   public stopPolling(): void {
-    if (!this.timerId) return;
+    if (this.timerId === null) return;
     window.clearInterval(this.timerId);
     this.timerId = null;
   }
 
   private async fetchState(): Promise<void> {
-    const query = this.studentId ? `?studentId=${this.studentId}` : '';
-    const response = await fetch(`/api/sessions/${this.currentRoomCode}${query}`);
-    const data = await response.json();
-    this.onUpdateCallback(data);
+    if (this.inFlight) return;
+    this.inFlight = true;
+    try {
+      const response = await fetch(this.getPollingUrl());
+      if (!response.ok) return this.onUpdateCallback({ pollError: { status: response.status } });
+      this.onUpdateCallback(await response.json());
+    } catch {
+      this.onUpdateCallback({ pollError: { status: 0 } });
+    } finally {
+      this.inFlight = false;
+    }
+  }
+
+  private getPollingUrl(): string {
+    if (!this.studentId) return `/api/sessions/${this.currentRoomCode}`;
+    return `/api/sessions/${this.currentRoomCode}?studentId=${this.studentId}`;
   }
 }
 ```

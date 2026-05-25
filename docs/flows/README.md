@@ -41,3 +41,6 @@ Keep these docs operational. Prefer short tables, explicit file names, and seque
 
 | File | Scope |
 |------|-------|
+| `instructor-runs-session.md` | Login → pick plan → open room → activate question → close |
+| `student-votes.md` | Join code → poll → vote → see lock |
+| `overlay-projection.md` | Overlay URL → countdown → reveal correct answer |

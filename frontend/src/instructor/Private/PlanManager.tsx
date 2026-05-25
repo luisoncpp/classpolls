@@ -5,13 +5,18 @@ import { PlanQuestionList } from './PlanQuestionList';
 import { QuestionEditor } from './QuestionEditor';
 import { DEFAULT_DRAFT, QuestionDraft, createDraftFromTemplate, parseDraft } from './questionDraft';
 import { Plan, PlanDetail } from './planTypes';
-type PlanManagerProps = { onOpenClassroom: (planId: string) => void; token: string };
+
+type PlanManagerProps = {
+  onOpenClassroom: (planId: string) => Promise<void>;
+  token: string;
+};
 
 export function PlanManager({ onOpenClassroom, token }: PlanManagerProps) {
   const [draft, setDraft] = useState<QuestionDraft>(DEFAULT_DRAFT);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<PlanDetail | null>(null);
   const [title, setTitle] = useState('');
@@ -34,12 +39,12 @@ export function PlanManager({ onOpenClassroom, token }: PlanManagerProps) {
         </div>
         <p style={descriptionStyle}>Build reusable question sets, then open a room when you are ready.</p>
       </div>
-      <form onSubmit={(event) => void createPlan(event, title, token, setError, setPlans, setTitle)} style={createFormStyle}>
+      <form onSubmit={(event) => void createPlan(event, title, token, setError, setPendingAction, setPlans, setTitle)} style={createFormStyle}>
         <input onInput={(event) => setTitle((event.currentTarget as HTMLInputElement).value)} placeholder="New plan title" style={inputStyle} value={title} />
-        <button style={primaryButtonStyle} type="submit">Create plan</button>
+        <button disabled={pendingAction === 'create-plan'} style={pendingAction === 'create-plan' ? pressedPrimaryButtonStyle : primaryButtonStyle} type="submit">{pendingAction === 'create-plan' ? 'Creating...' : 'Create plan'}</button>
       </form>
       {error ? <p style={errorStyle}>{error}</p> : null}
-      <div style={listStyle}>{plans.map((plan) => renderPlanCard(plan, expandedPlanId, onOpenClassroom, setError, setExpandedPlanId, setPlans, token))}</div>
+      <div style={listStyle}>{plans.map((plan) => renderPlanCard(plan, expandedPlanId, onOpenClassroom, pendingAction, setError, setExpandedPlanId, setPendingAction, setPlans, token))}</div>
       {selectedPlan && expandedPlanId ? (
         <section style={editorPanelStyle}>
           <header style={editorHeaderStyle}>
@@ -54,11 +59,12 @@ export function PlanManager({ onOpenClassroom, token }: PlanManagerProps) {
             draft={draft}
             error={editorError}
             onChange={setDraft}
-            onSubmit={(event) => void addQuestion(event, draft, expandedPlanId, setDraft, setEditorError, setError, setSelectedPlan, token)}
+            onSubmit={(event) => void addQuestion(event, draft, expandedPlanId, setDraft, setEditorError, setError, setPendingAction, setSelectedPlan, token)}
             onTemplateChange={(templateId) => setDraft(createDraftFromTemplate(templateId))}
+            pending={pendingAction === 'add-question'}
             title="Question templates"
           />
-          <PlanQuestionList planId={expandedPlanId} questions={selectedPlan.questions ?? []} setError={setError} setSelectedPlan={setSelectedPlan} token={token} />
+          <PlanQuestionList pendingAction={pendingAction} planId={expandedPlanId} questions={selectedPlan.questions ?? []} setError={setError} setPendingAction={setPendingAction} setSelectedPlan={setSelectedPlan} token={token} />
         </section>
       ) : null}
     </section>
@@ -72,6 +78,7 @@ async function addQuestion(
   setDraft: (value: QuestionDraft) => void,
   setEditorError: (value: string | null) => void,
   setError: (value: string | null) => void,
+  setPendingAction: (value: string | null) => void,
   setSelectedPlan: (value: PlanDetail | null) => void,
   token: string
 ) {
@@ -79,6 +86,7 @@ async function addQuestion(
   const parsed = parseDraft(draft);
   if ('error' in parsed) return setEditorError(parsed.error);
   try {
+    setPendingAction('add-question');
     await requestJson(`/api/plans/${planId}/questions`, { body: parsed, method: 'POST', token });
     setDraft(DEFAULT_DRAFT);
     setEditorError(null);
@@ -86,6 +94,8 @@ async function addQuestion(
     await loadPlanDetail(planId, token, setError, setSelectedPlan);
   } catch (error) {
     setEditorError(getErrorMessage(error));
+  } finally {
+    window.setTimeout(() => setPendingAction(null), 120);
   }
 }
 
@@ -94,15 +104,23 @@ async function createPlan(
   title: string,
   token: string,
   setError: (value: string | null) => void,
+  setPendingAction: (value: string | null) => void,
   setPlans: (value: Plan[]) => void,
   setTitle: (value: string) => void
 ) {
   event.preventDefault();
   if (!title.trim()) return setError('Plan title is required');
-  setError(null);
-  await requestJson('/api/plans', { body: { title }, method: 'POST', token });
-  setTitle('');
-  await loadPlans(token, setError, setPlans);
+  try {
+    setPendingAction('create-plan');
+    setError(null);
+    await requestJson('/api/plans', { body: { title }, method: 'POST', token });
+    setTitle('');
+    await loadPlans(token, setError, setPlans);
+  } catch (error) {
+    setError(getErrorMessage(error));
+  } finally {
+    window.setTimeout(() => setPendingAction(null), 120);
+  }
 }
 
 async function deletePlan(planId: string, token: string, setError: (value: string | null) => void, setPlans: (value: Plan[]) => void) {
@@ -140,13 +158,17 @@ async function loadPlans(token: string, setError: (value: string | null) => void
 function renderPlanCard(
   plan: Plan,
   expandedPlanId: string | null,
-  onOpenClassroom: (planId: string) => void,
+  onOpenClassroom: (planId: string) => Promise<void>,
+  pendingAction: string | null,
   setError: (value: string | null) => void,
   setExpandedPlanId: (value: string | null) => void,
+  setPendingAction: (value: string | null) => void,
   setPlans: (value: Plan[]) => void,
   token: string
 ) {
   const isExpanded = expandedPlanId === plan.id;
+  const isOpening = pendingAction === `open-${plan.id}`;
+  const isDeleting = pendingAction === `delete-${plan.id}`;
   return (
     <article key={plan.id} style={planCardStyle}>
       <div>
@@ -155,11 +177,39 @@ function renderPlanCard(
       </div>
       <div style={actionsStyle}>
         <button onClick={() => setExpandedPlanId(isExpanded ? null : plan.id)} style={secondaryButtonStyle} type="button">{isExpanded ? 'Hide editor' : 'Edit questions'}</button>
-        <button onClick={() => onOpenClassroom(plan.id)} style={primaryButtonStyle} type="button">Open classroom</button>
-        <button onClick={() => void deletePlan(plan.id, token, setError, setPlans)} style={ghostButtonStyle} type="button">Delete</button>
+        <button disabled={isOpening} onClick={() => void openPlan(plan.id, onOpenClassroom, setPendingAction)} style={isOpening ? pressedPrimaryButtonStyle : primaryButtonStyle} type="button">{isOpening ? 'Opening...' : 'Open classroom'}</button>
+        <button disabled={isDeleting} onClick={() => void removePlan(plan.id, token, setError, setPendingAction, setPlans)} style={isDeleting ? pressedGhostButtonStyle : ghostButtonStyle} type="button">{isDeleting ? 'Deleting...' : 'Delete'}</button>
       </div>
     </article>
   );
+}
+
+async function openPlan(
+  planId: string,
+  onOpenClassroom: (planId: string) => Promise<void>,
+  setPendingAction: (value: string | null) => void
+) {
+  try {
+    setPendingAction(`open-${planId}`);
+    await onOpenClassroom(planId);
+  } finally {
+    window.setTimeout(() => setPendingAction(null), 120);
+  }
+}
+
+async function removePlan(
+  planId: string,
+  token: string,
+  setError: (value: string | null) => void,
+  setPendingAction: (value: string | null) => void,
+  setPlans: (value: Plan[]) => void
+) {
+  try {
+    setPendingAction(`delete-${planId}`);
+    await deletePlan(planId, token, setError, setPlans);
+  } finally {
+    window.setTimeout(() => setPendingAction(null), 120);
+  }
 }
 
 const actionsStyle = { display: 'flex', flexWrap: 'wrap' as const, gap: '0.75rem' };
@@ -175,6 +225,8 @@ const inputStyle = { background: '#0f172a', border: '1px solid #334155', borderR
 const listStyle = { display: 'grid', gap: '0.9rem' };
 const planCardStyle = { alignItems: 'center', background: 'rgba(15, 23, 42, 0.86)', border: '1px solid #1e293b', borderRadius: '1.4rem', display: 'flex', flexWrap: 'wrap' as const, gap: '1rem', justifyContent: 'space-between', padding: '1.15rem 1.25rem' };
 const planTitleStyle = { fontSize: '1.05rem' };
+const pressedGhostButtonStyle = { background: 'rgba(59, 130, 246, 0.14)', border: '1px solid rgba(96, 165, 250, 0.35)', borderRadius: '999px', color: '#dbeafe', padding: '0.8rem 1rem' };
+const pressedPrimaryButtonStyle = { background: 'rgba(59, 130, 246, 0.36)', border: '1px solid rgba(96, 165, 250, 0.4)', borderRadius: '999px', color: '#eff6ff', padding: '0.8rem 1rem' };
 const primaryButtonStyle = { background: 'linear-gradient(135deg, #3b82f6, #2563eb)', border: 0, borderRadius: '999px', color: '#eff6ff', padding: '0.8rem 1rem' };
 const sectionHeaderStyle = { alignItems: 'end', display: 'flex', flexWrap: 'wrap' as const, gap: '1rem', justifyContent: 'space-between' };
 const sectionStyle = { display: 'grid', gap: '1rem' };

@@ -1,5 +1,5 @@
 import { QUESTION_TEMPLATES } from './questionTemplates';
-import { QuestionDraft } from './questionDraft';
+import { QuestionDraft, getDraftChoices } from './questionDraft';
 
 type QuestionEditorProps = {
   actionLabel: string;
@@ -8,10 +8,12 @@ type QuestionEditorProps = {
   onChange: (draft: QuestionDraft) => void;
   onSubmit: (event: Event) => void;
   onTemplateChange: (templateId: string) => void;
+  pending?: boolean;
   title: string;
 };
 
 export function QuestionEditor(props: QuestionEditorProps) {
+  const choices = getDraftChoices(props.draft);
   return (
     <form onSubmit={props.onSubmit} style={formStyle}>
       <div style={templateGridStyle}>
@@ -53,19 +55,20 @@ export function QuestionEditor(props: QuestionEditorProps) {
           />
         </label>
         <label style={labelStyle}>
-          Correct choice index
-          <input
-            inputMode="numeric"
-            onInput={(event) => props.onChange({ ...props.draft, correctChoiceIndex: (event.currentTarget as HTMLInputElement).value })}
-            placeholder="0"
+          Correct answer
+          <select
+            onInput={(event) => props.onChange({ ...props.draft, correctChoiceIndex: (event.currentTarget as HTMLSelectElement).value })}
             style={inputStyle}
             value={props.draft.correctChoiceIndex}
-          />
+          >
+            <option value="">No marked answer</option>
+            {choices.map((choice, index) => <option key={`${choice}-${index}`} value={String(index)}>{choice}</option>)}
+          </select>
         </label>
       </div>
-      <p style={hintStyle}>Choice index starts at 0. Example: `0` marks the first choice as correct.</p>
+      <p style={hintStyle}>The correct answer selector updates automatically from the listed choices.</p>
       {props.error ? <p style={errorStyle}>{props.error}</p> : null}
-      <button style={primaryButtonStyle} type="submit">{props.actionLabel}</button>
+      <button disabled={props.pending} style={props.pending ? pendingButtonStyle : primaryButtonStyle} type="submit">{props.pending ? 'Working...' : props.actionLabel}</button>
     </form>
   );
 }
@@ -77,6 +80,7 @@ const inputStyle = { background: '#0f172a', border: '1px solid #334155', borderR
 const labelStyle = { color: '#cbd5e1', display: 'grid', fontSize: '0.92rem', gap: '0.45rem' };
 const metaGridStyle = { display: 'grid', gap: '0.9rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' };
 const mutedStyle = { color: '#94a3b8', fontSize: '0.85rem' };
+const pendingButtonStyle = { background: 'rgba(59, 130, 246, 0.3)', border: '1px solid rgba(96, 165, 250, 0.35)', borderRadius: '999px', color: '#eff6ff', padding: '0.85rem 1.2rem', width: 'fit-content' };
 const primaryButtonStyle = { background: 'linear-gradient(135deg, #3b82f6, #2563eb)', border: 0, borderRadius: '999px', color: '#eff6ff', padding: '0.85rem 1.2rem', width: 'fit-content' };
 const templateButtonStyle = { alignItems: 'flex-start', background: 'rgba(15, 23, 42, 0.9)', border: '1px solid #334155', borderRadius: '1rem', color: '#e2e8f0', display: 'grid', gap: '0.25rem', padding: '0.95rem', textAlign: 'left' as const };
 const templateGridStyle = { display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' };

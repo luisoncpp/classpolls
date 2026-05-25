@@ -14,6 +14,7 @@ const db = vi.hoisted(() => ({
   getPlanById: vi.fn(),
   getSession: vi.fn(),
   getSessionStats: vi.fn(),
+  resetClient: vi.fn().mockResolvedValue(undefined),
   registerVote: vi.fn()
 }));
 
@@ -27,6 +28,7 @@ vi.mock('../src/db/index', async () => {
     getPlanById: db.getPlanById,
     getSession: db.getSession,
     getSessionStats: db.getSessionStats,
+    resetClient: db.resetClient,
     registerVote: db.registerVote
   };
 });
@@ -106,6 +108,52 @@ describe('sessions endpoints', () => {
       roomCode: 'ABCD',
       status: 'active'
     });
+  });
+
+  it('GET /api/sessions/:roomCode reveals the correct answer once the timer is over', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-23T19:15:31.000Z'));
+    vi.mocked(db.getSession).mockResolvedValue({
+      document: {
+        createdAt: new Date('2026-05-23T19:00:00.000Z'),
+        instructorToken: 'st_owner',
+        questions: [
+          {
+            choices: ['A', 'B'],
+            correctChoiceIndex: 1,
+            isActive: true,
+            questionId: 'q_1',
+            startedAt: new Date('2026-05-23T19:15:00.000Z'),
+            text: 'Q1',
+            timeLimit: 30,
+            votes: { 'student-1': 1 }
+          }
+        ],
+        roomCode: 'ABCD',
+        status: 'active'
+      }
+    } as never);
+
+    const response = await run('/api/sessions/ABCD', { method: 'GET' });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      createdAt: '2026-05-23T19:00:00.000Z',
+      questions: [
+        {
+          choices: ['A', 'B'],
+          correctChoiceIndex: 1,
+          isActive: true,
+          questionId: 'q_1',
+          startedAt: '2026-05-23T19:15:00.000Z',
+          text: 'Q1',
+          timeLimit: 30
+        }
+      ],
+      roomCode: 'ABCD',
+      status: 'active'
+    });
+    vi.useRealTimers();
   });
 
   it('GET /api/sessions/:roomCode for overlay omits myVote when studentId is absent', async () => {
@@ -254,6 +302,14 @@ describe('sessions endpoints', () => {
   });
 
   it('POST /api/sessions/:roomCode/vote writes a vote only for an active, unexpired question', async () => {
+    vi.mocked(db.registerVote).mockClear();
+    vi.mocked(db.getSession).mockResolvedValue({
+      document: {
+        questions: [{ isActive: true, questionId: 'q_1' }],
+        roomCode: 'ABCD',
+        status: 'active'
+      }
+    } as never);
     vi.mocked(db.registerVote).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never);
 
     const response = await run('/api/sessions/ABCD/vote', {
@@ -284,6 +340,39 @@ describe('sessions endpoints', () => {
     expect(await response.json()).toEqual({
       error: { code: 'VOTE_EXPIRED', message: 'Voting window closed' }
     });
+  });
+
+  it('POST /api/sessions/:roomCode/vote rejects when the timer already expired', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-23T19:15:31.000Z'));
+    vi.mocked(db.registerVote).mockClear();
+    vi.mocked(db.getSession).mockResolvedValue({
+      document: {
+        questions: [
+          {
+            isActive: true,
+            questionId: 'q_1',
+            startedAt: new Date('2026-05-23T19:15:00.000Z'),
+            timeLimit: 30
+          }
+        ],
+        roomCode: 'ABCD',
+        status: 'active'
+      }
+    } as never);
+
+    const response = await run('/api/sessions/ABCD/vote', {
+      body: JSON.stringify({ choiceIndex: 1, questionId: 'q_1', studentId: 'student-2' }),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: { code: 'VOTE_EXPIRED', message: 'Voting window closed' }
+    });
+    expect(db.registerVote).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it('POST /api/sessions/:roomCode/close marks the session closed', async () => {

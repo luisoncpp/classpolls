@@ -19,20 +19,24 @@ Student enters a room code on the home page and clicks "Join room".
    - `pollNow()` fires immediately, then `startPolling()` begins 3s interval
 
 3. **Polling loop**
-   - Every 3s: `GET /api/sessions/:roomCode?studentId=...`
-   - Response parsed as `PublicSession` → `setSession()` updates state
-   - `handleUpdate` also calls `VoteDispatcher.sync()` if a pending vote exists
-   - On `status === "closed"`: polling stops, UI shows "Session closed"
+    - Every 3s: `GET /api/sessions/:roomCode?studentId=...`
+    - Response parsed as `PublicSession` → `setSession()` updates state
+    - `handleUpdate` also calls `VoteDispatcher.sync()` if a pending vote exists
+    - When an active timed question is close to expiring, the client schedules an extra immediate poll right after the countdown crosses zero so the revealed answer arrives without waiting for the next 3s interval
+    - On `status === "closed"`: polling stops, UI shows "Session closed"
    - On `pollError.status === 404`: polling stops, UI shows "Room not found"
    - `inFlight` guard prevents overlapping requests
 
 4. **Vote**
-   - When a question is `isActive: true`, `Grid` renders enabled choice buttons
-   - Student clicks a choice → `VoteDispatcher.submitVote(questionId, choiceIndex)`
-   - Optimistic: `pendingVote` set immediately, component re-renders via `onChange`
-   - Button locks: `displayedVote !== null` disables all buttons
-   - `POST /api/sessions/:roomCode/vote` with `{ choiceIndex, questionId, studentId }`
-   - On API error: error message displayed, vote remains locked or reverts on next sync
+    - When a question is `isActive: true`, `Grid` renders enabled choice buttons
+    - A local 1s clock interpolates the countdown from `startedAt + timeLimit`
+    - Student clicks a choice → `VoteDispatcher.submitVote(questionId, choiceIndex)`
+    - Optimistic: `pendingVote` set immediately, component re-renders via `onChange`
+    - Button locks: `displayedVote !== null` disables all buttons
+    - `POST /api/sessions/:roomCode/vote` with `{ choiceIndex, questionId, studentId }`
+    - When the countdown reaches `0`, voting buttons disable immediately on the client
+    - When the timer is over and `correctChoiceIndex` is present, the correct choice is highlighted
+    - On API error: error message displayed, vote remains locked or reverts on next sync
 
 5. **Vote confirmation**
    - Next poll cycles bring back `myVote` from the server

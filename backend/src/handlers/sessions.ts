@@ -121,9 +121,19 @@ function normalizeQuestion(question: Record<string, unknown>, studentId: string 
   const voteMap = (question.votes as Record<string, number> | undefined) ?? {};
   const base = normalizeDates({ ...question, votes: undefined }) as Record<string, unknown>;
   delete base.votes;
-  if (base.isActive === true) delete base.correctChoiceIndex;
+  if (shouldHideCorrectChoice(question)) delete base.correctChoiceIndex;
   if (studentId) base.myVote = voteMap[studentId] ?? null;
   return base;
+}
+
+function shouldHideCorrectChoice(question: Record<string, unknown>) {
+  if (question.isActive !== true) return false;
+  return !isQuestionExpired(question, Date.now());
+}
+
+function isQuestionExpired(question: Record<string, unknown>, now: number) {
+  if (!(question.startedAt instanceof Date) || typeof question.timeLimit !== 'number') return false;
+  return question.startedAt.getTime() + question.timeLimit * 1000 <= now;
 }
 
 function stripPrivateFields(session: Record<string, unknown>, studentId: string | null) {
@@ -139,7 +149,17 @@ function stripPrivateFields(session: Record<string, unknown>, studentId: string 
 
 async function voteOnQuestion(req: Request, ctx: db.DbContext, roomCode: string) {
   const vote = await parseBody<{ choiceIndex: number; questionId: string; studentId: string }>(req);
+  const session = (await db.getSession(ctx, roomCode)).document;
+  const question = getSessionQuestion(session, vote.questionId);
+  if (!question || question.isActive !== true || isQuestionExpired(question, Date.now())) {
+    conflict('VOTE_EXPIRED', 'Voting window closed');
+  }
   const res = await db.registerVote(ctx, roomCode, vote);
   if (!res.matchedCount) conflict('VOTE_EXPIRED', 'Voting window closed');
   return json({ success: true });
+}
+
+function getSessionQuestion(session: Record<string, unknown> | null | undefined, questionId: string) {
+  const questions = (session?.questions as Record<string, unknown>[] | undefined) ?? [];
+  return questions.find((question) => question.questionId === questionId) ?? null;
 }

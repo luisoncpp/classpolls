@@ -2,6 +2,7 @@ import { MongoServerError, ObjectId } from 'mongodb';
 import { DbContext, resetClient, withDatabase } from './Private/client';
 
 export type { DbContext };
+export { resetClient };
 
 type InstructorProfile = {
   email?: string;

@@ -63,10 +63,17 @@ function createRequestInit(options: RequestOptions): RequestInit {
 async function readResponseBody(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
-  return JSON.parse(text) as unknown;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
 }
 
 function toApiError(body: unknown, status: number): ApiError {
+  if (typeof body === 'string') {
+    return new ApiError('REQUEST_FAILED', body, status);
+  }
   const payload = body as ApiErrorPayload | null;
   const code = payload?.error?.code ?? 'REQUEST_FAILED';
   const message = payload?.error?.message ?? 'Request failed';

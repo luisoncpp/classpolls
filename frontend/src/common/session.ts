@@ -32,6 +32,16 @@ export function getCountdownMs(question: SessionQuestion, now: number): number |
   return Math.max(0, new Date(question.startedAt).getTime() + question.timeLimit * 1000 - now);
 }
 
+export function isQuestionExpired(question: SessionQuestion, now: number): boolean {
+  const countdownMs = getCountdownMs(question, now);
+  if (countdownMs === null) return false;
+  return countdownMs === 0;
+}
+
+export function isQuestionOpen(question: SessionQuestion, now: number): boolean {
+  return question.isActive && !isQuestionExpired(question, now);
+}
+
 export function isPollError(update: PollError | PublicSession): update is PollError {
   return 'pollError' in update;
 }

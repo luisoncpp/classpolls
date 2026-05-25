@@ -37,7 +37,7 @@ export function createDraftFromTemplate(templateId: string): QuestionDraft {
 
 export function parseDraft(draft: QuestionDraft): ParsedDraft | { error: string } {
   const text = draft.text.trim();
-  const choices = draft.choicesText.split('\n').map((choice) => choice.trim()).filter(Boolean);
+  const choices = getDraftChoices(draft);
   if (!text || choices.length < 2) return { error: 'Questions need text and at least two choices' };
   const timeLimit = parseNumber(draft.timeLimit);
   if (timeLimit !== undefined && timeLimit <= 0) {
@@ -53,6 +53,10 @@ export function parseDraft(draft: QuestionDraft): ParsedDraft | { error: string 
     choices,
     text
   };
+}
+
+export function getDraftChoices(draft: Pick<QuestionDraft, 'choicesText'>): string[] {
+  return draft.choicesText.split('\n').map((choice) => choice.trim()).filter(Boolean);
 }
 
 function parseNumber(value: string): number | undefined {

@@ -33,6 +33,7 @@
   - Official `mongodb` driver (no Atlas Data API).
   - Cached `MongoClient` singleton per Worker isolate.
   - Retry/reset logic for connection errors (`withRetry`, `resetClient`).
+  - Defensive reset on uncaught request failures and database-operation timeouts to avoid poisoning later requests in the same isolate.
   - `withDatabase<T>()` helper that auto-closes temp clients when no-cache mode is on.
 
 - **Deployment**:
@@ -62,21 +63,22 @@
 
 - **Live classroom controls**:
   - Instructor can activate queued questions, launch custom questions, inspect overlay URL, and close the room.
+  - Instructor actions show visible pending feedback while requests are in flight.
   - Active-question stats render vote totals and highlight the configured correct answer.
 
 - **OBS overlay**:
   - Polls the public session endpoint.
-  - Shows the current question in a centered layout suitable for narrow or wide capture scenes.
+  - Shows the current question in a compact centered layout suitable for narrow or wide capture scenes.
   - Shows countdown when `timeLimit` exists.
-  - Reveals the correct answer after the question is no longer active.
+  - Reveals the correct answer after the timer expires or the question is no longer active.
 
 - **Student frontend**:
   - Room join, polling, anonymous identity bootstrap, and vote dispatch are implemented.
+  - Student view shows the countdown, disables voting at `0`, and reveals the correct answer after expiry.
 
 ## What is NOT Implemented
 
 - **MongoDB indexes**: not created yet. Run manually in Atlas UI or add a migration script.
-- **Time-limit enforcement on vote**: server-side `startedAt + timeLimit` check not implemented.
 - **`roomCode` collision retry**: `createSession` does not retry on duplicate `roomCode`.
 
 ## Known Limitations

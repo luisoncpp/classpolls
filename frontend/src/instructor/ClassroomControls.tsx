@@ -22,6 +22,7 @@ export function ClassroomControls({ roomCode, token }: ClassroomControlsProps) {
   const [draft, setDraft] = useState<QuestionDraft>(DEFAULT_DRAFT);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [session, setSession] = useState<SessionStats | null>(null);
 
   useEffect(() => pollSessionStats(roomCode, token, setError, setSession), [roomCode, token]);
@@ -34,7 +35,7 @@ export function ClassroomControls({ roomCode, token }: ClassroomControlsProps) {
           <h2 style={heroTitleStyle}>{roomCode}</h2>
           <p style={linkStyle}>{window.location.origin}/overlay/{roomCode}</p>
         </div>
-        <button onClick={() => void closeRoom(roomCode, setError, token)} style={ghostButtonStyle} type="button">Close room</button>
+        <button disabled={pendingAction === 'close-room'} onClick={() => void closeRoom(roomCode, setError, setPendingAction, token)} style={getActionButtonStyle(pendingAction === 'close-room', true)} type="button">{pendingAction === 'close-room' ? 'Closing...' : 'Close room'}</button>
       </header>
       {error ? <p style={errorStyle}>{error}</p> : null}
       <section style={panelStyle}>
@@ -45,7 +46,7 @@ export function ClassroomControls({ roomCode, token }: ClassroomControlsProps) {
           </div>
           <span style={countBadgeStyle}>{session?.questions.length ?? 0} loaded</span>
         </div>
-        <div style={questionGridStyle}>{session?.questions.map((question) => renderQuestionCard(question, roomCode, setError, setSession, token))}</div>
+        <div style={questionGridStyle}>{session?.questions.map((question) => renderQuestionCard(question, pendingAction, roomCode, setError, setPendingAction, setSession, token))}</div>
       </section>
       <section style={twoColumnStyle}>
         <section style={panelStyle}>
@@ -54,8 +55,9 @@ export function ClassroomControls({ roomCode, token }: ClassroomControlsProps) {
             draft={draft}
             error={editorError}
             onChange={setDraft}
-            onSubmit={(event) => void createCustomQuestion(event, draft, roomCode, setDraft, setEditorError, setError, setSession, token)}
+            onSubmit={(event) => void createCustomQuestion(event, draft, roomCode, setDraft, setEditorError, setError, setPendingAction, setSession, token)}
             onTemplateChange={(templateId) => setDraft(createDraftFromTemplate(templateId))}
+            pending={pendingAction === 'custom-question'}
             title="Custom question"
           />
         </section>
@@ -69,23 +71,35 @@ async function activateQuestion(
   questionId: string,
   roomCode: string,
   setError: (value: string | null) => void,
+  setPendingAction: (value: string | null) => void,
   setSession: (value: SessionStats | null) => void,
   token: string
 ) {
   try {
+    setPendingAction(`activate-${questionId}`);
     await requestJson(`/api/sessions/${roomCode}/questions/${questionId}/activate`, { method: 'POST', token });
     await loadStats(roomCode, token, setError, setSession, () => true);
   } catch (error) {
     setError(getErrorMessage(error));
+  } finally {
+    window.setTimeout(() => setPendingAction(null), 120);
   }
 }
 
-async function closeRoom(roomCode: string, setError: (value: string | null) => void, token: string) {
+async function closeRoom(
+  roomCode: string,
+  setError: (value: string | null) => void,
+  setPendingAction: (value: string | null) => void,
+  token: string
+) {
   try {
+    setPendingAction('close-room');
     await requestJson(`/api/sessions/${roomCode}/close`, { method: 'POST', token });
     setError(null);
   } catch (error) {
     setError(getErrorMessage(error));
+  } finally {
+    setPendingAction(null);
   }
 }
 
@@ -96,6 +110,7 @@ async function createCustomQuestion(
   setDraft: (value: QuestionDraft) => void,
   setEditorError: (value: string | null) => void,
   setError: (value: string | null) => void,
+  setPendingAction: (value: string | null) => void,
   setSession: (value: SessionStats | null) => void,
   token: string
 ) {
@@ -103,12 +118,15 @@ async function createCustomQuestion(
   const parsed = parseDraft(draft);
   if ('error' in parsed) return setEditorError(parsed.error);
   try {
+    setPendingAction('custom-question');
     await requestJson(`/api/sessions/${roomCode}/questions/custom`, { body: { ...parsed, activate: true }, method: 'POST', token });
     setDraft(DEFAULT_DRAFT);
     setEditorError(null);
     await loadStats(roomCode, token, setError, setSession, () => true);
   } catch (error) {
     setEditorError(getErrorMessage(error));
+  } finally {
+    window.setTimeout(() => setPendingAction(null), 120);
   }
 }
 
@@ -151,11 +169,14 @@ function pollSessionStats(
 
 function renderQuestionCard(
   question: SessionQuestion,
+  pendingAction: string | null,
   roomCode: string,
   setError: (value: string | null) => void,
+  setPendingAction: (value: string | null) => void,
   setSession: (value: SessionStats | null) => void,
   token: string
 ) {
+  const isPending = pendingAction === `activate-${question.questionId}`;
   return (
     <article key={question.questionId} style={cardStyle}>
       <div style={cardBodyStyle}>
@@ -163,7 +184,7 @@ function renderQuestionCard(
         <p style={mutedStyle}>{question.choices.join(' / ')}</p>
         <p style={metaStyle}>{toQuestionMeta(question)}</p>
       </div>
-      <button onClick={() => void activateQuestion(question.questionId, roomCode, setError, setSession, token)} style={question.isActive ? activeButtonStyle : primaryButtonStyle} type="button">{question.isActive ? 'Active now' : 'Go live'}</button>
+      <button disabled={isPending} onClick={() => void activateQuestion(question.questionId, roomCode, setError, setPendingAction, setSession, token)} style={getActionButtonStyle(question.isActive || isPending, false)} type="button">{isPending ? 'Launching...' : question.isActive ? 'Active now' : 'Go live'}</button>
     </article>
   );
 }
@@ -171,8 +192,13 @@ function renderQuestionCard(
 function toQuestionMeta(question: SessionQuestion) {
   const parts = [`${question.choices.length} choices`];
   if (typeof question.timeLimit === 'number') parts.push(`${question.timeLimit}s timer`);
-  if (typeof question.correctChoiceIndex === 'number') parts.push(`answer ${question.correctChoiceIndex}`);
+  if (typeof question.correctChoiceIndex === 'number') parts.push(`answer ready`);
   return parts.join(' • ');
+}
+
+function getActionButtonStyle(isPressed: boolean, muted: boolean) {
+  if (muted) return isPressed ? pressedGhostButtonStyle : ghostButtonStyle;
+  return isPressed ? activeButtonStyle : primaryButtonStyle;
 }
 
 const activeButtonStyle = { background: 'rgba(34, 197, 94, 0.18)', border: '1px solid rgba(74, 222, 128, 0.4)', borderRadius: '999px', color: '#dcfce7', padding: '0.8rem 1rem' };
@@ -191,6 +217,7 @@ const mutedStyle = { color: '#94a3b8', margin: 0 };
 const panelHeaderStyle = { alignItems: 'center', display: 'flex', flexWrap: 'wrap' as const, gap: '0.75rem', justifyContent: 'space-between' };
 const panelStyle = { background: 'rgba(15, 23, 42, 0.82)', border: '1px solid #1e293b', borderRadius: '1.5rem', display: 'grid', gap: '1rem', padding: '1.3rem' };
 const primaryButtonStyle = { background: 'linear-gradient(135deg, #3b82f6, #2563eb)', border: 0, borderRadius: '999px', color: '#eff6ff', padding: '0.8rem 1rem' };
+const pressedGhostButtonStyle = { background: 'rgba(59, 130, 246, 0.14)', border: '1px solid rgba(96, 165, 250, 0.35)', borderRadius: '999px', color: '#dbeafe', padding: '0.8rem 1rem' };
 const questionGridStyle = { display: 'grid', gap: '0.8rem' };
 const sectionTitleStyle = { margin: '0.15rem 0 0' };
 const twoColumnStyle = { display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' };

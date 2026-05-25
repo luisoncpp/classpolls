@@ -4,6 +4,7 @@ import { env, run } from './helpers';
 
 const db = vi.hoisted(() => ({
   getInstructorByGoogleId: vi.fn(),
+  resetClient: vi.fn().mockResolvedValue(undefined),
   upsertInstructor: vi.fn()
 }));
 
@@ -13,11 +14,12 @@ vi.mock('jose', () => ({
 }));
 
 vi.mock('../src/db/index', async () => {
-  return {
-    getInstructorByGoogleId: db.getInstructorByGoogleId,
-    upsertInstructor: db.upsertInstructor
-  };
-});
+    return {
+      getInstructorByGoogleId: db.getInstructorByGoogleId,
+      resetClient: db.resetClient,
+      upsertInstructor: db.upsertInstructor
+    };
+  });
 
 beforeEach(() => {
   db.getInstructorByGoogleId.mockReset();

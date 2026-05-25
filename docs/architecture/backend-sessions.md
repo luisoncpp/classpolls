@@ -50,9 +50,15 @@ This guarantees exactly one active question per room atomically.
 
 ## Vote Registration
 
+Before calling `registerVote`, the handler loads the session and rejects the write with `409 VOTE_EXPIRED` when the target question is missing, inactive, or already past `startedAt + timeLimit`.
+
 `registerVote` uses `$set` with `questions.$[q].votes.${studentId}` inside an `arrayFilters` targeting `q.isActive: true && q.questionId: questionId`. Returns `matchedCount` — if zero (question not active or room not in active status), the handler responds with `409 VOTE_EXPIRED`.
 
 ## Deferred Items
 
 - **`roomCode` collision retry**: The `createSession` function should retry on `E11000` duplicate key errors before falling back to `409 ROOM_CODE_EXHAUSTED`.
-- **Server-side time-limit enforcement**: `registerVote` should check `Date.now() < startedAt + timeLimit` before writing the vote.
+
+## Failure Recovery
+
+- The Worker now resets the cached Mongo client on any uncaught request error before returning the error response.
+- Database operations also use a defensive timeout; if an operation stalls, the cached client is reset so later requests do not keep reusing a poisoned connection.

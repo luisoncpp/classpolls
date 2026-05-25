@@ -11,6 +11,7 @@ const db = vi.hoisted(() => ({
   deletePlan: vi.fn(),
   getPlan: vi.fn(),
   listPlans: vi.fn(),
+  resetClient: vi.fn().mockResolvedValue(undefined),
   removeQuestionFromPlan: vi.fn()
 }));
 
@@ -21,6 +22,7 @@ vi.mock('../src/db/index', async () => {
     deletePlan: db.deletePlan,
     getPlan: db.getPlan,
     listPlans: db.listPlans,
+    resetClient: db.resetClient,
     removeQuestionFromPlan: db.removeQuestionFromPlan
   };
 });

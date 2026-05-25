@@ -1,4 +1,5 @@
 import { handleGoogleAuth } from './handlers/auth';
+import { resetClient } from './db';
 import { HttpError, toErrorResponse } from './handlers/_shared';
 import { handlePlans } from './handlers/plans';
 import { handleSessions } from './handlers/sessions';
@@ -44,6 +45,7 @@ export default {
 
       return addCors(toErrorResponse(new HttpError(404, 'NOT_FOUND', 'Not found')));
     } catch (error) {
+      await resetClient().catch(() => {});
       return addCors(toErrorResponse(error));
     }
   }

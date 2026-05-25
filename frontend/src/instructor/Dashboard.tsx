@@ -31,7 +31,7 @@ export function Dashboard() {
         {!token ? <div ref={googleButtonRef} /> : <p style={signedInStyle}>Signed in and ready.</p>}
         {error ? <p style={errorStyle}>{error}</p> : null}
       </section>
-      {token ? <PlanManager onOpenClassroom={(planId) => void openClassroom(planId, setError, setRoomCode, token)} token={token} /> : null}
+      {token ? <PlanManager onOpenClassroom={(planId) => openClassroom(planId, setError, setRoomCode, token)} token={token} /> : null}
       {token && roomCode ? <ClassroomControls roomCode={roomCode} token={token} /> : null}
     </main>
   );

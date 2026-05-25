@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { SessionPollingController } from '../common/SessionPollingController';
 import { getStudentId } from '../common/identity';
-import { PublicSession, getActiveQuestion, isPollError } from '../common/session';
+import { PublicSession, getActiveQuestion, getCountdownMs, isPollError } from '../common/session';
 import { Grid } from './Grid';
 import { VoteDispatcher } from './Private/VoteDispatcher';
 
@@ -14,8 +14,9 @@ export function RoomJoin() {
   const [, setRevision] = useState(0);
   const controllerRef = useRef<SessionPollingController | null>(null);
   const dispatcherRef = useRef<VoteDispatcher | null>(null);
+  const expiryTimerRef = useRef<number | null>(null);
 
-  useEffect(() => startRoomPolling(joinedRoomCode, controllerRef, dispatcherRef, setJoinError, setRevision, setSession), [joinedRoomCode]);
+  useEffect(() => startRoomPolling(joinedRoomCode, controllerRef, dispatcherRef, expiryTimerRef, setJoinError, setRevision, setSession), [joinedRoomCode]);
 
   return (
     <main style={layoutStyle}>
@@ -53,25 +54,27 @@ function startRoomPolling(
   joinedRoomCode: string,
   controllerRef: preact.RefObject<SessionPollingController | null>,
   dispatcherRef: preact.RefObject<VoteDispatcher | null>,
+  expiryTimerRef: preact.RefObject<number | null>,
   setJoinError: (value: string | null) => void,
   setRevision: (value: number | ((current: number) => number)) => void,
   setSession: (value: PublicSession | null) => void
 ) {
-  stopController(controllerRef);
+  stopController(controllerRef, expiryTimerRef);
   dispatcherRef.current = null;
   if (!joinedRoomCode) return;
   const studentId = getStudentId();
   dispatcherRef.current = new VoteDispatcher(joinedRoomCode, studentId, () => setRevision((current) => current + 1));
-  const controller = new SessionPollingController(joinedRoomCode, (update) => handleUpdate(controller, dispatcherRef.current, setJoinError, setSession, update), studentId);
+  const controller = new SessionPollingController(joinedRoomCode, (update) => handleUpdate(controller, dispatcherRef.current, expiryTimerRef, setJoinError, setSession, update), studentId);
   controllerRef.current = controller;
   controller.pollNow();
   controller.startPolling();
-  return () => stopController(controllerRef);
+  return () => stopController(controllerRef, expiryTimerRef);
 }
 
 function handleUpdate(
   controller: SessionPollingController,
   dispatcher: VoteDispatcher | null,
+  expiryTimerRef: preact.RefObject<number | null>,
   setJoinError: (value: string | null) => void,
   setSession: (value: PublicSession | null) => void,
   update: PublicSession | { pollError: { status: number } }
@@ -84,14 +87,33 @@ function handleUpdate(
   }
   const activeQuestion = getActiveQuestion(update);
   dispatcher?.sync(activeQuestion?.questionId ?? null, activeQuestion?.myVote ?? null);
+  scheduleExpiryPoll(activeQuestion, controller, expiryTimerRef);
   setJoinError(null);
   setSession(update);
   if (update.status === 'closed') controller.stopPolling();
 }
 
-function stopController(controllerRef: preact.RefObject<SessionPollingController | null>) {
+function scheduleExpiryPoll(
+  question: PublicSession['questions'][number] | null,
+  controller: SessionPollingController,
+  expiryTimerRef: preact.RefObject<number | null>
+) {
+  if (expiryTimerRef.current !== null) window.clearTimeout(expiryTimerRef.current);
+  expiryTimerRef.current = null;
+  if (!question) return;
+  const countdownMs = getCountdownMs(question, Date.now());
+  if (countdownMs === null || countdownMs === 0) return;
+  expiryTimerRef.current = window.setTimeout(() => controller.pollNow(), countdownMs + 50);
+}
+
+function stopController(
+  controllerRef: preact.RefObject<SessionPollingController | null>,
+  expiryTimerRef: preact.RefObject<number | null>
+) {
   controllerRef.current?.stopPolling();
   controllerRef.current = null;
+  if (expiryTimerRef.current !== null) window.clearTimeout(expiryTimerRef.current);
+  expiryTimerRef.current = null;
 }
 
 const errorStyle = { color: '#fca5a5' };

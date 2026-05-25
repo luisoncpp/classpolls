@@ -10,6 +10,7 @@ import {
   readId,
   requireToken
 } from './_shared';
+import { parseQuestionPayload } from './questionPayload';
 
 const CREATE = new URLPattern({ pathname: '/api/sessions' });
 const PUBLIC = new URLPattern({ pathname: '/api/sessions/:roomCode' });
@@ -45,7 +46,7 @@ async function addCustomQuestion(req: Request, ctx: db.DbContext, roomCode: stri
   const body = await parseBody<Record<string, unknown>>(req);
   const activate = Boolean(body.activate);
   if (activate) await db.deactivateQuestion(ctx, roomCode, token);
-  const question = createQuestion(body, activate);
+  const question = createQuestion(parseQuestionPayload(body), activate);
   await db.addCustomQuestion(ctx, roomCode, { instructorToken: token, question });
   return json({ questionId: question.questionId }, 201);
 }
@@ -61,18 +62,22 @@ async function closeSession(req: Request, ctx: db.DbContext, roomCode: string) {
 }
 
 function copyQuestions(questions: Record<string, unknown>[] = []) {
-  return questions.map((question) => createQuestion(question, false, question.questionId as string));
+  return questions.map((question) => createQuestion(parseQuestionPayload(question), false, question.questionId as string));
 }
 
-function createQuestion(body: Record<string, unknown>, active: boolean, questionId?: string) {
+function createQuestion(
+  payload: { choices: string[]; correctChoiceIndex?: number; text: string; timeLimit?: number },
+  active: boolean,
+  questionId?: string
+) {
   return {
-    ...(typeof body.correctChoiceIndex === 'number' ? { correctChoiceIndex: body.correctChoiceIndex } : {}),
+    ...(typeof payload.correctChoiceIndex === 'number' ? { correctChoiceIndex: payload.correctChoiceIndex } : {}),
     ...(active ? { startedAt: new Date() } : {}),
-    ...(typeof body.timeLimit === 'number' ? { timeLimit: body.timeLimit } : {}),
-    choices: Array.isArray(body.choices) ? body.choices : [],
+    ...(typeof payload.timeLimit === 'number' ? { timeLimit: payload.timeLimit } : {}),
+    choices: payload.choices,
     isActive: active,
     questionId: questionId ?? `q_${Date.now()}`,
-    text: String(body.text ?? ''),
+    text: payload.text,
     votes: {}
   };
 }

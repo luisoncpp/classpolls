@@ -21,14 +21,15 @@ Instructor (or anyone) opens `/overlay/:roomCode` in a browser or OBS browser so
    - Displayed as `Math.ceil(countdownMs / 1000)` seconds
 
 3. **Choice display**
-   - Choices rendered as non-interactive cards
+   - Choices rendered as large non-interactive cards in a centered single-column canvas
    - When `question.isActive === false` and `correctChoiceIndex` is set, the correct choice card gets a green highlight (`correctChoiceStyle`)
+   - No persistent side rail or sidebar layout is used, so narrow OBS scenes keep the prompt centered
 
 4. **State transitions**
-   - On `status === "closed"`: polling stops, no error shown (session ended gracefully)
-   - On `pollError.status === 404`: polling stops, "Room not found" shown
-   - When no active question exists: shows the last question (or "Waiting for the next question...")
-   - `inFlight` guard prevents overlapping polls
+    - On `status === "closed"`: polling stops, no error shown (session ended gracefully)
+    - On `pollError.status === 404`: polling stops, "Room not found" shown
+    - When no active question exists: shows the last question (or "Waiting for the next question...")
+    - `inFlight` guard prevents overlapping polls
 
 ## Reads
 - `GET /api/sessions/:roomCode` (no `studentId` param) — 3s polling

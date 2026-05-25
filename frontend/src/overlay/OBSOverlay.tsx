@@ -24,13 +24,18 @@ export function OBSOverlay({ roomCode }: OBSOverlayProps) {
   const countdownMs = displayQuestion ? getCountdownMs(displayQuestion, now) : null;
   return (
     <main style={overlayLayoutStyle}>
-      <header>
-        <p style={badgeStyle}>Room {session.roomCode}</p>
-        <h1 style={{ fontSize: '2.5rem', margin: '0.5rem 0' }}>{displayQuestion?.text ?? 'Waiting for the next question...'}</h1>
-        {countdownMs !== null && activeQuestion ? <p style={countdownStyle}>{Math.ceil(countdownMs / 1000)}s</p> : null}
-      </header>
-      <section style={{ display: 'grid', gap: '1rem' }}>
+      <section style={frameStyle}>
+        <header style={headerStyle}>
+          <div style={headerRowStyle}>
+            <p style={badgeStyle}>Room {session.roomCode}</p>
+            {countdownMs !== null && activeQuestion ? <p style={countdownStyle}>{Math.ceil(countdownMs / 1000)}s</p> : null}
+          </div>
+          <h1 style={questionTitleStyle}>{displayQuestion?.text ?? 'Waiting for the next question...'}</h1>
+          <p style={statusStyle}>{activeQuestion ? 'Voting is live' : 'Waiting for the instructor'}</p>
+        </header>
+        <section style={choicesStyle}>
         {(displayQuestion?.choices ?? []).map((choice, index) => renderOverlayChoice(choice, displayQuestion?.correctChoiceIndex, index))}
+        </section>
       </section>
     </main>
   );
@@ -40,8 +45,8 @@ function renderOverlayChoice(choice: string, correctChoiceIndex: number | undefi
   const isCorrect = correctChoiceIndex === index;
   return (
     <div key={`${choice}-${index}`} style={{ ...choiceStyle, ...(isCorrect ? correctChoiceStyle : null) }}>
-      <strong>{String.fromCharCode(65 + index)}</strong>
-      <span>{choice}</span>
+      <strong style={choiceKeyStyle}>{String.fromCharCode(65 + index)}</strong>
+      <span style={choiceTextStyle}>{choice}</span>
     </div>
   );
 }
@@ -82,7 +87,15 @@ function handleOverlayUpdate(
 }
 
 const badgeStyle = { color: '#93c5fd', letterSpacing: '0.08em', margin: 0, textTransform: 'uppercase' as const };
-const choiceStyle = { alignItems: 'center', background: 'rgba(15, 23, 42, 0.72)', border: '1px solid rgba(148, 163, 184, 0.35)', borderRadius: '1rem', display: 'grid', gap: '1rem', gridTemplateColumns: '48px 1fr', padding: '1rem 1.25rem' };
-const correctChoiceStyle = { background: 'rgba(22, 163, 74, 0.24)', border: '1px solid rgba(34, 197, 94, 0.7)' };
-const countdownStyle = { color: '#fde68a', fontSize: '2rem', margin: 0 };
-const overlayLayoutStyle = { color: '#f8fafc', display: 'grid', gap: '1.5rem', margin: '0 auto', maxWidth: '1100px', minHeight: '100vh', padding: '2rem', background: 'radial-gradient(circle at top, #1e3a8a 0%, #020617 65%)' };
+const choicesStyle = { display: 'grid', gap: '1rem', width: 'min(100%, 1080px)' };
+const choiceKeyStyle = { fontSize: 'clamp(1.2rem, 2vw, 1.8rem)' };
+const choiceStyle = { alignItems: 'center', background: 'rgba(15, 23, 42, 0.68)', border: '1px solid rgba(148, 163, 184, 0.22)', borderRadius: '1.4rem', display: 'grid', gap: '1rem', gridTemplateColumns: '64px 1fr', padding: '1.15rem 1.35rem' };
+const choiceTextStyle = { fontSize: 'clamp(1.2rem, 2.7vw, 2rem)', lineHeight: 1.2 };
+const correctChoiceStyle = { background: 'linear-gradient(135deg, rgba(20, 83, 45, 0.95), rgba(21, 128, 61, 0.72))', border: '1px solid rgba(74, 222, 128, 0.72)', boxShadow: '0 0 0 1px rgba(74, 222, 128, 0.14) inset' };
+const countdownStyle = { background: 'rgba(250, 204, 21, 0.12)', border: '1px solid rgba(253, 224, 71, 0.34)', borderRadius: '999px', color: '#fef08a', fontSize: 'clamp(1.1rem, 2vw, 1.6rem)', margin: 0, padding: '0.45rem 0.9rem' };
+const frameStyle = { alignItems: 'center', display: 'grid', gap: '1.5rem', justifyItems: 'center' as const, width: '100%' };
+const headerRowStyle = { alignItems: 'center', display: 'flex', flexWrap: 'wrap' as const, gap: '0.9rem', justifyContent: 'space-between', width: '100%' };
+const headerStyle = { alignItems: 'center', display: 'grid', gap: '0.9rem', justifyItems: 'center' as const, textAlign: 'center' as const, width: 'min(100%, 1080px)' };
+const overlayLayoutStyle = { alignItems: 'center', background: 'radial-gradient(circle at 50% 0%, #172554 0%, #020617 62%, #000814 100%)', color: '#f8fafc', display: 'grid', minHeight: '100vh', padding: 'clamp(1.2rem, 3vw, 2.4rem)' };
+const questionTitleStyle = { fontSize: 'clamp(2.1rem, 5vw, 4.5rem)', lineHeight: 1.05, margin: 0, maxWidth: '20ch' };
+const statusStyle = { color: '#cbd5e1', fontSize: 'clamp(1rem, 1.7vw, 1.2rem)', margin: 0 };

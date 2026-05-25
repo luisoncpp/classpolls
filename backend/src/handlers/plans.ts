@@ -9,6 +9,7 @@ import {
   readId,
   requireToken
 } from './_shared';
+import { parseQuestionPayload } from './questionPayload';
 
 const ROOT = new URLPattern({ pathname: '/api/plans' });
 const PLAN = new URLPattern({ pathname: '/api/plans/:planId' });
@@ -49,7 +50,7 @@ async function handlePlan(req: Request, ctx: db.DbContext, token: string, planId
     if (!res.document?.instructorToken || res.document.instructorToken !== token) {
       throw new HttpError(404, 'PLAN_NOT_FOUND', 'Plan not found');
     }
-    return json(res.document);
+    return json(toPlanDetail(res.document));
   }
   if (req.method === 'DELETE') {
     const res = await db.deletePlan(ctx, token, planId);
@@ -61,7 +62,10 @@ async function handlePlan(req: Request, ctx: db.DbContext, token: string, planId
 
 async function handleQuestions(req: Request, ctx: db.DbContext, token: string, planId: string) {
   if (req.method !== 'POST') return null;
-  const question = await parseQuestion(req);
+  const question = {
+    ...parseQuestionPayload(await parseBody<Record<string, unknown>>(req)),
+    questionId: `q_${Date.now()}`
+  };
   await db.addQuestionToPlan(ctx, planId, { instructorToken: token, question });
   return json({ questionId: question.questionId }, 201);
 }
@@ -72,32 +76,19 @@ async function removeQuestion(
   planId: string,
   questionId: string
 ) {
-  await db.removeQuestionFromPlan(ctx, planId, { instructorToken: token, questionId });
+  const result = await db.removeQuestionFromPlan(ctx, planId, { instructorToken: token, questionId });
+  if (!result.modifiedCount) throw new HttpError(404, 'PLAN_NOT_FOUND', 'Plan not found');
   return json({ success: true });
-}
-
-async function parseQuestion(req: Request) {
-  const body = await parseBody<Record<string, unknown>>(req);
-  const choices = Array.isArray(body.choices) ? body.choices.filter(isString) : [];
-  const correct = body.correctChoiceIndex;
-  const text = typeof body.text === 'string' ? body.text.trim() : '';
-  const invalidIndex = typeof correct === 'number' && (correct < 0 || correct >= choices.length);
-  if (!text || choices.length < 2 || invalidIndex) {
-    badRequest('INVALID_QUESTION', 'Question payload is invalid');
-  }
-  return {
-    ...(typeof correct === 'number' ? { correctChoiceIndex: correct } : {}),
-    ...(typeof body.timeLimit === 'number' ? { timeLimit: body.timeLimit } : {}),
-    choices,
-    questionId: `q_${Date.now()}`,
-    text
-  };
-}
-
-function isString(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0;
 }
 
 function toPlanListItem(plan: Record<string, unknown>) {
   return { id: readId(plan._id), title: String(plan.title ?? '') };
+}
+
+function toPlanDetail(plan: Record<string, unknown>) {
+  return {
+    id: readId(plan._id),
+    questions: Array.isArray(plan.questions) ? plan.questions : [],
+    title: String(plan.title ?? '')
+  };
 }

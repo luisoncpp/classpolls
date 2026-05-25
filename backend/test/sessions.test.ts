@@ -130,6 +130,28 @@ describe('sessions endpoints', () => {
     });
   });
 
+  it('GET /api/sessions/:roomCode reveals correct answer after a question is inactive', async () => {
+    vi.mocked(db.getSession).mockResolvedValue({
+      document: {
+        createdAt: new Date('2026-05-23T19:00:00.000Z'),
+        instructorToken: 'st_owner',
+        questions: [{ choices: ['A', 'B'], correctChoiceIndex: 1, isActive: false, questionId: 'q_1', text: 'Q1', votes: {} }],
+        roomCode: 'ABCD',
+        status: 'active'
+      }
+    } as never);
+
+    const response = await run('/api/sessions/ABCD', { method: 'GET' });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      createdAt: '2026-05-23T19:00:00.000Z',
+      questions: [{ choices: ['A', 'B'], correctChoiceIndex: 1, isActive: false, questionId: 'q_1', text: 'Q1' }],
+      roomCode: 'ABCD',
+      status: 'active'
+    });
+  });
+
   it('GET /api/sessions/:roomCode/stats returns full votes only to the owner token', async () => {
     vi.mocked(db.getSessionStats).mockResolvedValue({
       document: {
@@ -169,6 +191,36 @@ describe('sessions endpoints', () => {
     expect(db.addCustomQuestion).toHaveBeenCalledWith(expect.any(Object), 'ABCD', {
       instructorToken: 'st_owner',
       question: expect.objectContaining({ isActive: true, questionId: expect.stringMatching(/^q_/) })
+    });
+  });
+
+  it('POST /api/sessions/:roomCode/questions/custom keeps timing and correct answer metadata', async () => {
+    resetTime();
+    vi.mocked(db.addCustomQuestion).mockResolvedValue({ modifiedCount: 1 } as never);
+
+    const response = await run('/api/sessions/ABCD/questions/custom', {
+      body: JSON.stringify({
+        activate: true,
+        choices: ['A', 'B', 'C'],
+        correctChoiceIndex: 2,
+        text: 'Live?',
+        timeLimit: 20
+      }),
+      headers: { Authorization: 'Bearer st_owner', 'Content-Type': 'application/json' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(201);
+    expect(db.addCustomQuestion).toHaveBeenCalledWith(expect.any(Object), 'ABCD', {
+      instructorToken: 'st_owner',
+      question: expect.objectContaining({
+        choices: ['A', 'B', 'C'],
+        correctChoiceIndex: 2,
+        isActive: true,
+        startedAt: expect.any(Date),
+        text: 'Live?',
+        timeLimit: 20
+      })
     });
   });
 

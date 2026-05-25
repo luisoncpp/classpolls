@@ -14,7 +14,7 @@
   - `POST /api/plans` — create a plan with a title.
   - `GET /api/plans/:planId` — get a single plan.
   - `DELETE /api/plans/:planId` — delete a plan.
-  - `POST /api/plans/:planId/questions` — add a question.
+  - `POST /api/plans/:planId/questions` — add a question with optional `timeLimit` and `correctChoiceIndex`.
   - `DELETE /api/plans/:planId/questions/:questionId` — remove a question.
 
 - **Session Lifecycle**:
@@ -52,13 +52,32 @@
 - All tests mock `db/index.ts` for isolation.
 - Vitest configured with TypeScript.
 
+### Frontend
+
+- **Instructor dashboard**:
+  - Google sign-in flow wired.
+  - Plan list, plan detail editor, question add/remove, and live room launch implemented.
+  - Shared question templates available for reusable plan questions and custom live questions.
+  - Question authoring supports optional `timeLimit` and `correctChoiceIndex`.
+
+- **Live classroom controls**:
+  - Instructor can activate queued questions, launch custom questions, inspect overlay URL, and close the room.
+  - Active-question stats render vote totals and highlight the configured correct answer.
+
+- **OBS overlay**:
+  - Polls the public session endpoint.
+  - Shows the current question in a centered layout suitable for narrow or wide capture scenes.
+  - Shows countdown when `timeLimit` exists.
+  - Reveals the correct answer after the question is no longer active.
+
+- **Student frontend**:
+  - Room join, polling, anonymous identity bootstrap, and vote dispatch are implemented.
+
 ## What is NOT Implemented
 
 - **MongoDB indexes**: not created yet. Run manually in Atlas UI or add a migration script.
 - **Time-limit enforcement on vote**: server-side `startedAt + timeLimit` check not implemented.
 - **`roomCode` collision retry**: `createSession` does not retry on duplicate `roomCode`.
-- **Frontend**: nothing built yet (Vite + Preact scaffold only).
-- **Architecture docs** for sessions and flows.
 
 ## Known Limitations
 

@@ -100,6 +100,45 @@ describe('plans endpoints', () => {
     expect(db.addQuestionToPlan).not.toHaveBeenCalled();
   });
 
+  it('POST /api/plans/:planId/questions persists time limit and correct answer', async () => {
+    vi.mocked(db.addQuestionToPlan).mockResolvedValue({ modifiedCount: 1 } as never);
+
+    const response = await run('/api/plans/64f000000000000000000005/questions', {
+      body: JSON.stringify({
+        choices: ['A', 'B', 'C'],
+        correctChoiceIndex: 1,
+        text: 'Choose one',
+        timeLimit: 45
+      }),
+      headers: { Authorization: 'Bearer st_owner', 'Content-Type': 'application/json' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(201);
+    expect(db.addQuestionToPlan).toHaveBeenCalledWith(expect.any(Object), '64f000000000000000000005', {
+      instructorToken: 'st_owner',
+      question: expect.objectContaining({
+        choices: ['A', 'B', 'C'],
+        correctChoiceIndex: 1,
+        text: 'Choose one',
+        timeLimit: 45
+      })
+    });
+  });
+
+  it('POST /api/plans/:planId/questions rejects invalid time limits', async () => {
+    const response = await run('/api/plans/64f000000000000000000005/questions', {
+      body: JSON.stringify({ choices: ['A', 'B'], text: 'Choose one', timeLimit: -1 }),
+      headers: { Authorization: 'Bearer st_owner', 'Content-Type': 'application/json' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: { code: 'INVALID_QUESTION', message: 'Question payload is invalid' }
+    });
+  });
+
   it('DELETE /api/plans/:planId/questions/:questionId pulls the matching question', async () => {
     vi.mocked(db.removeQuestionFromPlan).mockResolvedValue({ modifiedCount: 1 } as never);
 

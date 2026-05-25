@@ -22,9 +22,13 @@ export function Dashboard() {
 
   return (
     <main style={layoutStyle}>
-      <section style={panelStyle}>
-        <h1>Instructor Dashboard</h1>
-        {!token ? <div ref={googleButtonRef} /> : <p>Signed in.</p>}
+      <section style={heroStyle}>
+        <div style={heroCopyStyle}>
+          <p style={eyebrowStyle}>ClassPolls</p>
+          <h1 style={titleStyle}>Instructor Dashboard</h1>
+          <p style={subtitleStyle}>Build question plans, run live sessions, and keep the stream overlay readable on-screen.</p>
+        </div>
+        {!token ? <div ref={googleButtonRef} /> : <p style={signedInStyle}>Signed in and ready.</p>}
         {error ? <p style={errorStyle}>{error}</p> : null}
       </section>
       {token ? <PlanManager onOpenClassroom={(planId) => void openClassroom(planId, setError, setRoomCode, token)} token={token} /> : null}
@@ -75,5 +79,10 @@ async function openClassroom(
 }
 
 const errorStyle = { color: '#fca5a5' };
-const layoutStyle = { color: '#f9fafb', display: 'grid', gap: '1.5rem', margin: '0 auto', maxWidth: '1100px', padding: '2rem' };
-const panelStyle = { background: '#111827', borderRadius: '1.25rem', padding: '1.5rem' };
+const eyebrowStyle = { color: '#60a5fa', letterSpacing: '0.14em', margin: 0, textTransform: 'uppercase' as const };
+const heroCopyStyle = { display: 'grid', gap: '0.6rem' };
+const heroStyle = { background: 'linear-gradient(155deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9))', border: '1px solid rgba(96, 165, 250, 0.16)', borderRadius: '2rem', display: 'grid', gap: '1rem', padding: '1.7rem' };
+const layoutStyle = { color: '#f8fafc', display: 'grid', gap: '1.5rem', margin: '0 auto', maxWidth: '1180px', padding: '2rem' };
+const signedInStyle = { color: '#bfdbfe', margin: 0 };
+const subtitleStyle = { color: '#94a3b8', margin: 0, maxWidth: '52rem' };
+const titleStyle = { fontSize: 'clamp(2.2rem, 5vw, 3.6rem)', margin: 0 };

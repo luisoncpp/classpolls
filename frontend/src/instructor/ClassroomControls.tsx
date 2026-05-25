@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
 
 import { getErrorMessage, requestJson } from '../common/apiClient';
+import { StatsView } from './Private/StatsView';
 import { QuestionEditor } from './Private/QuestionEditor';
 import { DEFAULT_DRAFT, QuestionDraft, createDraftFromTemplate, parseDraft } from './Private/questionDraft';
-import { StatsView } from './Private/StatsView';
 
 type SessionQuestion = {
   choices: string[];
@@ -15,17 +15,26 @@ type SessionQuestion = {
   votes?: Record<string, number>;
 };
 
-type SessionStats = { questions: SessionQuestion[]; roomCode: string; status: 'active' | 'closed' };
-type ClassroomControlsProps = { roomCode: string; token: string };
+type SessionStats = {
+  questions: SessionQuestion[];
+  roomCode: string;
+  status: 'active' | 'closed';
+};
 
-export function ClassroomControls({ roomCode, token }: ClassroomControlsProps) {
+type ClassroomControlsProps = {
+  onRoomClosed: () => void;
+  roomCode: string;
+  token: string;
+};
+
+export function ClassroomControls({ onRoomClosed, roomCode, token }: ClassroomControlsProps) {
   const [draft, setDraft] = useState<QuestionDraft>(DEFAULT_DRAFT);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [session, setSession] = useState<SessionStats | null>(null);
 
-  useEffect(() => pollSessionStats(roomCode, token, setError, setSession), [roomCode, token]);
+  useEffect(() => startStatsPolling(roomCode, token, onRoomClosed, setError, setSession), [onRoomClosed, roomCode, token]);
   const activeQuestion = session?.questions.find((question) => question.isActive) ?? null;
   return (
     <section style={layoutStyle}>
@@ -35,7 +44,7 @@ export function ClassroomControls({ roomCode, token }: ClassroomControlsProps) {
           <h2 style={heroTitleStyle}>{roomCode}</h2>
           <p style={linkStyle}>{window.location.origin}/overlay/{roomCode}</p>
         </div>
-        <button disabled={pendingAction === 'close-room'} onClick={() => void closeRoom(roomCode, setError, setPendingAction, token)} style={getActionButtonStyle(pendingAction === 'close-room', true)} type="button">{pendingAction === 'close-room' ? 'Closing...' : 'Close room'}</button>
+        <button disabled={pendingAction === 'close-room'} onClick={() => void closeRoom(roomCode, onRoomClosed, setError, setPendingAction, token)} style={getActionButtonStyle(pendingAction === 'close-room', true)} type="button">{pendingAction === 'close-room' ? 'Closing...' : 'Close room'}</button>
       </header>
       {error ? <p style={errorStyle}>{error}</p> : null}
       <section style={panelStyle}>
@@ -67,14 +76,7 @@ export function ClassroomControls({ roomCode, token }: ClassroomControlsProps) {
   );
 }
 
-async function activateQuestion(
-  questionId: string,
-  roomCode: string,
-  setError: (value: string | null) => void,
-  setPendingAction: (value: string | null) => void,
-  setSession: (value: SessionStats | null) => void,
-  token: string
-) {
+async function activateQuestion(questionId: string, roomCode: string, setError: (value: string | null) => void, setPendingAction: (value: string | null) => void, setSession: (value: SessionStats | null) => void, token: string) {
   try {
     setPendingAction(`activate-${questionId}`);
     await requestJson(`/api/sessions/${roomCode}/questions/${questionId}/activate`, { method: 'POST', token });
@@ -86,16 +88,12 @@ async function activateQuestion(
   }
 }
 
-async function closeRoom(
-  roomCode: string,
-  setError: (value: string | null) => void,
-  setPendingAction: (value: string | null) => void,
-  token: string
-) {
+async function closeRoom(roomCode: string, onRoomClosed: () => void, setError: (value: string | null) => void, setPendingAction: (value: string | null) => void, token: string) {
   try {
     setPendingAction('close-room');
     await requestJson(`/api/sessions/${roomCode}/close`, { method: 'POST', token });
     setError(null);
+    onRoomClosed();
   } catch (error) {
     setError(getErrorMessage(error));
   } finally {
@@ -103,18 +101,9 @@ async function closeRoom(
   }
 }
 
-async function createCustomQuestion(
-  event: Event,
-  draft: QuestionDraft,
-  roomCode: string,
-  setDraft: (value: QuestionDraft) => void,
-  setEditorError: (value: string | null) => void,
-  setError: (value: string | null) => void,
-  setPendingAction: (value: string | null) => void,
-  setSession: (value: SessionStats | null) => void,
-  token: string
-) {
+async function createCustomQuestion(event: Event, draft: QuestionDraft, roomCode: string, setDraft: (value: QuestionDraft) => void, setEditorError: (value: string | null) => void, setError: (value: string | null) => void, setPendingAction: (value: string | null) => void, setSession: (value: SessionStats | null) => void, token: string) {
   event.preventDefault();
+  let releasedPending = false;
   const parsed = parseDraft(draft);
   if ('error' in parsed) return setEditorError(parsed.error);
   try {
@@ -122,43 +111,43 @@ async function createCustomQuestion(
     await requestJson(`/api/sessions/${roomCode}/questions/custom`, { body: { ...parsed, activate: true }, method: 'POST', token });
     setDraft(DEFAULT_DRAFT);
     setEditorError(null);
-    await loadStats(roomCode, token, setError, setSession, () => true);
+    setPendingAction(null);
+    releasedPending = true;
+    void loadStats(roomCode, token, setError, setSession, () => true);
   } catch (error) {
     setEditorError(getErrorMessage(error));
   } finally {
-    window.setTimeout(() => setPendingAction(null), 120);
+    if (!releasedPending) window.setTimeout(() => setPendingAction(null), 120);
   }
 }
 
-async function loadStats(
-  roomCode: string,
-  token: string,
-  setError: (value: string | null) => void,
-  setSession: (value: SessionStats | null) => void,
-  isMounted: () => boolean
-) {
+async function loadStats(roomCode: string, token: string, setError: (value: string | null) => void, setSession: (value: SessionStats | null) => void, isMounted: () => boolean): Promise<SessionStats | null> {
   try {
     const nextSession = await requestJson<SessionStats>(`/api/sessions/${roomCode}/stats`, { token });
-    if (!isMounted()) return;
+    if (!isMounted()) return null;
     setSession(nextSession);
     setError(null);
+    return nextSession;
   } catch (error) {
-    if (!isMounted()) return;
+    if (!isMounted()) return null;
     setError(getErrorMessage(error));
+    return null;
   }
 }
 
-function pollSessionStats(
-  roomCode: string,
-  token: string,
-  setError: (value: string | null) => void,
-  setSession: (value: SessionStats | null) => void
-) {
+function renderQuestionCard(question: SessionQuestion, pendingAction: string | null, roomCode: string, setError: (value: string | null) => void, setPendingAction: (value: string | null) => void, setSession: (value: SessionStats | null) => void, token: string) {
+  const isPending = pendingAction === `activate-${question.questionId}`;
+  return <article key={question.questionId} style={cardStyle}><div style={cardBodyStyle}><strong>{question.text}</strong><p style={mutedStyle}>{question.choices.join(' / ')}</p><p style={metaStyle}>{toQuestionMeta(question)}</p></div><button disabled={isPending} onClick={() => void activateQuestion(question.questionId, roomCode, setError, setPendingAction, setSession, token)} style={getActionButtonStyle(question.isActive || isPending, false)} type="button">{isPending ? 'Launching...' : question.isActive ? 'Active now' : 'Go live'}</button></article>;
+}
+
+function startStatsPolling(roomCode: string, token: string, onRoomClosed: () => void, setError: (value: string | null) => void, setSession: (value: SessionStats | null) => void) {
   let mounted = true;
   let timerId: number | null = null;
   const refresh = async () => {
-    await loadStats(roomCode, token, setError, setSession, () => mounted);
-    if (mounted) timerId = window.setTimeout(/*pollStats*/ refresh, /*delayInMs=*/3000);
+    const nextSession = await loadStats(roomCode, token, setError, setSession, () => mounted);
+    if (!mounted) return;
+    if (nextSession?.status === 'closed') return onRoomClosed();
+    timerId = window.setTimeout(/*pollStats*/ refresh, /*delayInMs=*/3000);
   };
   void refresh();
   return () => {
@@ -167,32 +156,10 @@ function pollSessionStats(
   };
 }
 
-function renderQuestionCard(
-  question: SessionQuestion,
-  pendingAction: string | null,
-  roomCode: string,
-  setError: (value: string | null) => void,
-  setPendingAction: (value: string | null) => void,
-  setSession: (value: SessionStats | null) => void,
-  token: string
-) {
-  const isPending = pendingAction === `activate-${question.questionId}`;
-  return (
-    <article key={question.questionId} style={cardStyle}>
-      <div style={cardBodyStyle}>
-        <strong>{question.text}</strong>
-        <p style={mutedStyle}>{question.choices.join(' / ')}</p>
-        <p style={metaStyle}>{toQuestionMeta(question)}</p>
-      </div>
-      <button disabled={isPending} onClick={() => void activateQuestion(question.questionId, roomCode, setError, setPendingAction, setSession, token)} style={getActionButtonStyle(question.isActive || isPending, false)} type="button">{isPending ? 'Launching...' : question.isActive ? 'Active now' : 'Go live'}</button>
-    </article>
-  );
-}
-
 function toQuestionMeta(question: SessionQuestion) {
   const parts = [`${question.choices.length} choices`];
   if (typeof question.timeLimit === 'number') parts.push(`${question.timeLimit}s timer`);
-  if (typeof question.correctChoiceIndex === 'number') parts.push(`answer ready`);
+  if (typeof question.correctChoiceIndex === 'number') parts.push('answer ready');
   return parts.join(' • ');
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 
-import { getErrorMessage, getInstructorToken, requestJson, setInstructorToken } from '../common/apiClient';
+import { clearInstructorRoomCode, getErrorMessage, getInstructorRoomCode, getInstructorToken, requestJson, setInstructorRoomCode, setInstructorToken } from '../common/apiClient';
 import { ClassroomControls } from './ClassroomControls';
 import { GoogleAuth } from './Private/GoogleAuth';
 import { PlanManager } from './Private/PlanManager';
@@ -13,7 +13,7 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
 
 export function Dashboard() {
   const [token, setToken] = useState<string | null>(() => getInstructorToken());
-  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [roomCode, setRoomCode] = useState<string | null>(() => getInstructorRoomCode());
   const [error, setError] = useState<string | null>(null);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const authRef = useRef<GoogleAuth | null>(null);
@@ -31,10 +31,15 @@ export function Dashboard() {
         {!token ? <div ref={googleButtonRef} /> : <p style={signedInStyle}>Signed in and ready.</p>}
         {error ? <p style={errorStyle}>{error}</p> : null}
       </section>
-      {token ? <PlanManager onOpenClassroom={(planId) => openClassroom(planId, setError, setRoomCode, token)} token={token} /> : null}
-      {token && roomCode ? <ClassroomControls roomCode={roomCode} token={token} /> : null}
+      {token && !roomCode ? <PlanManager onOpenClassroom={(planId) => openClassroom(planId, setError, setRoomCode, token)} token={token} /> : null}
+      {token && roomCode ? <ClassroomControls onRoomClosed={() => closeRecoveredRoom(setRoomCode)} roomCode={roomCode} token={token} /> : null}
     </main>
   );
+}
+
+function closeRecoveredRoom(setRoomCode: (value: string | null) => void) {
+  clearInstructorRoomCode();
+  setRoomCode(null);
 }
 
 function mountGoogleButton(
@@ -71,6 +76,7 @@ async function openClassroom(
 ) {
   try {
     const response = await requestJson<SessionResponse>('/api/sessions', { body: { planId }, method: 'POST', token });
+    setInstructorRoomCode(response.roomCode);
     setRoomCode(response.roomCode);
     setError(null);
   } catch (error) {

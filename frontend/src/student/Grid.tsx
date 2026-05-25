@@ -15,21 +15,22 @@ export function Grid({ onVoteError, session, voteDispatcher }: GridProps) {
 
   useEffect(() => startClock(setNow), []);
   const activeQuestion = getActiveQuestion(session);
-  if (session.status === 'closed') return <p>Session closed.</p>;
-  if (!activeQuestion) return <p>Waiting for the instructor...</p>;
+  const latestQuestion = activeQuestion ?? session.questions[session.questions.length - 1] ?? null;
+  if (!latestQuestion && session.status === 'closed') return <p>Session closed.</p>;
+  if (!latestQuestion) return <p>Waiting for the instructor...</p>;
 
-  const countdownMs = getCountdownMs(activeQuestion, now);
-  const displayedVote = voteDispatcher?.getDisplayedVote(activeQuestion.questionId, activeQuestion.myVote) ?? activeQuestion.myVote ?? null;
-  const isExpired = isQuestionExpired(activeQuestion, now);
+  const countdownMs = getCountdownMs(latestQuestion, now);
+  const displayedVote = voteDispatcher?.getDisplayedVote(latestQuestion.questionId, latestQuestion.myVote) ?? latestQuestion.myVote ?? null;
+  const isExpired = session.status === 'closed' || isQuestionExpired(latestQuestion, now) || latestQuestion.isActive === false;
   return (
     <section style={sectionStyle}>
       <div style={headerStyle}>
-        <h2 style={titleStyle}>{activeQuestion.text}</h2>
-        {countdownMs !== null ? <p style={countdownStyle}>{Math.ceil(countdownMs / 1000)}s</p> : null}
+        <h2 style={titleStyle}>{latestQuestion.text}</h2>
+        {countdownMs !== null && !isExpired ? <p style={countdownStyle}>{Math.ceil(countdownMs / 1000)}s</p> : null}
       </div>
-      <p style={statusStyle}>{isExpired ? 'Time is over' : displayedVote === null ? 'Choose one option' : 'Vote registered'}</p>
+      <p style={statusStyle}>{session.status === 'closed' ? 'Session closed' : isExpired ? 'Time is over' : displayedVote === null ? 'Choose one option' : 'Vote registered'}</p>
       <div style={gridStyle}>
-        {activeQuestion.choices.map((choice, index) => renderChoiceButton(activeQuestion, choice, index, displayedVote, isExpired, onVoteError, voteDispatcher, now))}
+        {latestQuestion.choices.map((choice, index) => renderChoiceButton(latestQuestion, choice, index, displayedVote, isExpired, onVoteError, voteDispatcher, now))}
       </div>
     </section>
   );

@@ -23,7 +23,7 @@ export function OBSOverlay({ roomCode }: OBSOverlayProps) {
   const activeQuestion = getActiveQuestion(session);
   const displayQuestion = activeQuestion ?? session.questions[session.questions.length - 1] ?? null;
   const countdownMs = displayQuestion ? getCountdownMs(displayQuestion, now) : null;
-  const revealCorrectAnswer = displayQuestion ? isQuestionExpired(displayQuestion, now) || displayQuestion.isActive === false : false;
+  const revealCorrectAnswer = displayQuestion ? displayQuestion.isActive === false || isQuestionExpired(displayQuestion, now) && typeof displayQuestion.correctChoiceIndex === 'number' : false;
   return (
     <main style={overlayLayoutStyle}>
       <section style={frameStyle}>

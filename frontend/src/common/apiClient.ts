@@ -1,4 +1,5 @@
 const INSTRUCTOR_TOKEN_KEY = 'cp.instructorToken';
+const INSTRUCTOR_ROOM_CODE_KEY = 'cp.instructorRoomCode';
 
 type ApiErrorPayload = {
   error?: {
@@ -25,10 +26,19 @@ export class ApiError extends Error {
 
 export function clearInstructorToken(): void {
   window.localStorage.removeItem(INSTRUCTOR_TOKEN_KEY);
+  clearInstructorRoomCode();
+}
+
+export function clearInstructorRoomCode(): void {
+  window.localStorage.removeItem(INSTRUCTOR_ROOM_CODE_KEY);
 }
 
 export function getInstructorToken(): string | null {
   return window.localStorage.getItem(INSTRUCTOR_TOKEN_KEY);
+}
+
+export function getInstructorRoomCode(): string | null {
+  return window.localStorage.getItem(INSTRUCTOR_ROOM_CODE_KEY);
 }
 
 export function getErrorMessage(error: unknown): string {
@@ -47,6 +57,10 @@ export async function requestJson<T>(path: string, options: RequestOptions = {})
 
 export function setInstructorToken(token: string): void {
   window.localStorage.setItem(INSTRUCTOR_TOKEN_KEY, token);
+}
+
+export function setInstructorRoomCode(roomCode: string): void {
+  window.localStorage.setItem(INSTRUCTOR_ROOM_CODE_KEY, roomCode);
 }
 
 function createRequestInit(options: RequestOptions): RequestInit {

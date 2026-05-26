@@ -4,3 +4,4 @@
 /.wrangler
 /backend/.dev.vars
 /backend/.wrangler
+/backend/.env

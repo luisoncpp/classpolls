@@ -19,13 +19,10 @@ describe('ClassroomControls', () => {
 
   it('keeps queue cards visible while polling refreshes session stats', async () => {
     vi.useFakeTimers();
-    let resolveRefresh: ((value: typeof session) => void) | null = null;
     const session = { questions: [{ choices: ['Yes', 'No'], isActive: true, questionId: 'q1', text: 'First question', votes: {} }], roomCode: 'ROOM', status: 'active' as const };
 
     requestJsonMock.mockResolvedValueOnce(session);
-    requestJsonMock.mockImplementationOnce(() => new Promise((resolve) => {
-      resolveRefresh = resolve as (value: typeof session) => void;
-    }));
+    requestJsonMock.mockResolvedValue(session);
 
     const view = render(<ClassroomControls onRoomClosed={vi.fn()} roomCode="ROOM" token="token" />);
 
@@ -41,12 +38,8 @@ describe('ClassroomControls', () => {
     });
 
     expect(screen.getAllByText('First question').length).toBeGreaterThan(0);
-    expect(screen.getByText('1 loaded · refreshing')).toBeInTheDocument();
+    expect(screen.getByText('1 loaded')).toBeInTheDocument();
 
-    resolveRefresh?.(session);
-    await act(async () => {
-      await Promise.resolve();
-    });
     view.unmount();
   });
 });

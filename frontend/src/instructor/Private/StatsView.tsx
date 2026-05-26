@@ -20,15 +20,15 @@ export function StatsView({ question }: StatsViewProps) {
       <header style={headerStyle}>
         <p style={eyebrowStyle}>Live results</p>
         <h3 style={titleStyle}>{question.text}</h3>
-        <span style={statusBadgeStyle}>{question.isActive ? 'Receiving votes' : 'Awaiting next question'}</span>
+        <span style={statusBadgeStyle}>{question.isActive ? 'Receiving answers' : 'Awaiting next question'}</span>
       </header>
       <div style={summaryGridStyle}>
         <article style={summaryCardStyle}><span style={metaStyle}>Responses</span><strong style={summaryValueStyle}>{totalVotes}</strong></article>
-        <article style={summaryCardStyle}><span style={metaStyle}>Leading choice</span><strong style={summaryValueStyle}>{totalVotes ? question.choices[leadingChoiceIndex] : 'No votes yet'}</strong></article>
+        <article style={summaryCardStyle}><span style={metaStyle}>Leading choice</span><strong style={summaryValueStyle}>{totalVotes ? question.choices[leadingChoiceIndex] : 'No answers yet'}</strong></article>
         <article style={summaryCardStyle}><span style={metaStyle}>Marked answer</span><strong style={summaryValueStyle}>{typeof question.correctChoiceIndex === 'number' ? question.choices[question.correctChoiceIndex] : 'Not set'}</strong></article>
       </div>
       <div style={chartLayoutStyle}>
-        <div style={chartCardStyle}><div style={pieWrapStyle}><div style={pieStyle(counts, totalVotes)} /><div style={pieCenterStyle}><strong>{totalVotes}</strong><span>votes</span></div></div><p style={chartNoteStyle}>Results update as the instructor dashboard refreshes live session stats.</p></div>
+        <div style={chartCardStyle}><div style={pieWrapStyle}><div style={pieStyle(counts, totalVotes)} /><div style={pieCenterStyle}><strong>{totalVotes}</strong><span>answers</span></div></div><p style={chartNoteStyle}>Results update as the instructor dashboard refreshes live session stats.</p></div>
         <div style={legendStyle}>{question.choices.map((choice, index) => renderLegendItem(choice, counts[index] ?? 0, index, question.correctChoiceIndex, totalVotes))}</div>
       </div>
     </section>
@@ -73,7 +73,7 @@ function renderLegendItem(
         <strong>{count}</strong>
       </div>
       <div style={progressTrackStyle}><div style={{ ...progressFillStyle, background: SLICE_COLORS[index % SLICE_COLORS.length], width: `${percent}%` }} /></div>
-      <span style={metaStyle}>{percent}% of votes</span>
+      <span style={metaStyle}>{percent}% of answers</span>
     </div>
   );
 }

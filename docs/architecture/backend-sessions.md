@@ -40,7 +40,7 @@ This guarantees exactly one active question per room atomically.
 **Public** (`GET /api/sessions/:roomCode`):
 - Strips `_id`, `instructorToken`, full `votes` dictionary
 - Injects `myVote` from `votes[studentId]` when a `studentId` query param is provided
-- Removes `correctChoiceIndex` from active questions (don't reveal answer during voting)
+- Removes `correctChoiceIndex` unless the question is still active and its timer has expired
 - Normalizes `Date` fields to ISO strings
 
 **Instructor** (`GET /api/sessions/:roomCode/stats`):
@@ -52,7 +52,16 @@ This guarantees exactly one active question per room atomically.
 
 Before calling `registerVote`, the handler loads the session and rejects the write with `409 VOTE_EXPIRED` when the target question is missing, inactive, or already past `startedAt + timeLimit`.
 
+The handler also validates the vote payload before any write:
+- `studentId` must be a lowercase UUIDv4-style string (`8-4-4-4-12` hex segments)
+- `choiceIndex` must be an integer within the current question's `choices` range
+- `questionId` must be a non-empty string
+
 `registerVote` uses `$set` with `questions.$[q].votes.${studentId}` inside an `arrayFilters` targeting `q.isActive: true && q.questionId: questionId`. Returns `matchedCount` — if zero (question not active or room not in active status), the handler responds with `409 VOTE_EXPIRED`.
+
+## Plan Ownership
+
+`createSession` may copy questions from a saved plan, but only when `plan.instructorToken` matches the bearer token that opened the room. Cross-instructor plan ids are treated as `404 PLAN_NOT_FOUND`.
 
 ## Deferred Items
 

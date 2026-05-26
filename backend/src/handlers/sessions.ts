@@ -2,6 +2,7 @@ import { Env } from '../index';
 import * as db from '../db';
 import {
   HttpError,
+  badRequest,
   conflict,
   getDbContext,
   json,
@@ -20,6 +21,7 @@ const ACTIVATE = new URLPattern({ pathname: '/api/sessions/:roomCode/questions/:
 const DEACTIVATE = new URLPattern({ pathname: '/api/sessions/:roomCode/questions/deactivate' });
 const VOTE = new URLPattern({ pathname: '/api/sessions/:roomCode/vote' });
 const CLOSE = new URLPattern({ pathname: '/api/sessions/:roomCode/close' });
+const STUDENT_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
 export async function handleSessions(req: Request, env: Env): Promise<Response | null> {
   const ctx = getDbContext(env);
@@ -86,6 +88,9 @@ async function createSession(req: Request, ctx: db.DbContext) {
   const token = requireToken(req);
   const body = await parseBody<{ planId?: string }>(req);
   const plan = body.planId ? await db.getPlanById(ctx, body.planId) : { document: null };
+  if (body.planId && plan.document?.instructorToken !== token) {
+    throw new HttpError(404, 'PLAN_NOT_FOUND', 'Plan not found');
+  }
   const roomCode = generateRoomCode();
   await db.createSession(ctx, token, {
     planId: body.planId,
@@ -127,8 +132,7 @@ function normalizeQuestion(question: Record<string, unknown>, studentId: string 
 }
 
 function shouldHideCorrectChoice(question: Record<string, unknown>) {
-  if (question.isActive !== true) return false;
-  return !isQuestionExpired(question, Date.now());
+  return question.isActive !== true || !isQuestionExpired(question, Date.now());
 }
 
 function isQuestionExpired(question: Record<string, unknown>, now: number) {
@@ -148,12 +152,14 @@ function stripPrivateFields(session: Record<string, unknown>, studentId: string 
 }
 
 async function voteOnQuestion(req: Request, ctx: db.DbContext, roomCode: string) {
-  const vote = await parseBody<{ choiceIndex: number; questionId: string; studentId: string }>(req);
+  const body = await parseBody<Record<string, unknown>>(req);
+  const questionId = readQuestionId(body);
   const session = (await db.getSession(ctx, roomCode)).document;
-  const question = getSessionQuestion(session, vote.questionId);
+  const question = getSessionQuestion(session, questionId);
   if (!question || question.isActive !== true || isQuestionExpired(question, Date.now())) {
     conflict('VOTE_EXPIRED', 'Voting window closed');
   }
+  const vote = parseVotePayload(body, questionId, question);
   const res = await db.registerVote(ctx, roomCode, vote);
   if (!res.matchedCount) conflict('VOTE_EXPIRED', 'Voting window closed');
   return json({ success: true });
@@ -162,4 +168,32 @@ async function voteOnQuestion(req: Request, ctx: db.DbContext, roomCode: string)
 function getSessionQuestion(session: Record<string, unknown> | null | undefined, questionId: string) {
   const questions = (session?.questions as Record<string, unknown>[] | undefined) ?? [];
   return questions.find((question) => question.questionId === questionId) ?? null;
+}
+
+function parseVotePayload(
+  body: Record<string, unknown>,
+  questionId: string,
+  question: Record<string, unknown>
+) {
+  const choiceIndex = body.choiceIndex as number;
+  const studentId = typeof body.studentId === 'string' ? body.studentId : '';
+  const choiceCount = Array.isArray(question.choices) ? question.choices.length : 0;
+  if (!Number.isInteger(choiceIndex) || choiceIndex < 0 || choiceIndex >= choiceCount || !isValidStudentId(studentId)) {
+    badRequest('INVALID_VOTE', 'Vote payload is invalid');
+  }
+  return { choiceIndex, questionId, studentId };
+}
+
+function isValidStudentId(studentId: string) {
+  return STUDENT_ID_PATTERN.test(studentId)
+    && !studentId.includes('.')
+    && !studentId.includes('$')
+    && !studentId.includes('\0');
+}
+
+function readQuestionId(body: Record<string, unknown>) {
+  if (typeof body.questionId !== 'string' || !body.questionId) {
+    badRequest('INVALID_VOTE', 'Vote payload is invalid');
+  }
+  return body.questionId;
 }

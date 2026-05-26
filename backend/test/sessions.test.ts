@@ -5,6 +5,9 @@ function oid(hex: string) {
   return { toHexString: () => hex };
 }
 
+const studentId1 = '11111111-1111-1111-1111-111111111111';
+const studentId2 = '22222222-2222-2222-2222-222222222222';
+
 const db = vi.hoisted(() => ({
   activateQuestion: vi.fn(),
   addCustomQuestion: vi.fn(),
@@ -39,6 +42,7 @@ describe('sessions endpoints', () => {
     vi.mocked(db.getPlanById).mockResolvedValue({
       document: {
         _id: oid('64f000000000000000000010'),
+        instructorToken: 'st_owner',
         questions: [{ choices: ['A', 'B'], questionId: 'q_1', text: 'Q1', timeLimit: 30 }]
       }
     } as never);
@@ -81,7 +85,7 @@ describe('sessions endpoints', () => {
             startedAt: new Date('2026-05-23T19:15:00.000Z'),
             text: 'Q1',
             timeLimit: 30,
-            votes: { 'student-1': 1 }
+            votes: { [studentId1]: 1 }
           }
         ],
         roomCode: 'ABCD',
@@ -89,7 +93,7 @@ describe('sessions endpoints', () => {
       }
     } as never);
 
-    const response = await run('/api/sessions/ABCD?studentId=student-1', { method: 'GET' });
+    const response = await run(`/api/sessions/ABCD?studentId=${studentId1}`, { method: 'GET' });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -126,7 +130,7 @@ describe('sessions endpoints', () => {
             startedAt: new Date('2026-05-23T19:15:00.000Z'),
             text: 'Q1',
             timeLimit: 30,
-            votes: { 'student-1': 1 }
+            votes: { [studentId1]: 1 }
           }
         ],
         roomCode: 'ABCD',
@@ -178,7 +182,7 @@ describe('sessions endpoints', () => {
     });
   });
 
-  it('GET /api/sessions/:roomCode reveals correct answer after a question is inactive', async () => {
+  it('GET /api/sessions/:roomCode hides correct answer after a question is inactive', async () => {
     vi.mocked(db.getSession).mockResolvedValue({
       document: {
         createdAt: new Date('2026-05-23T19:00:00.000Z'),
@@ -194,7 +198,7 @@ describe('sessions endpoints', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       createdAt: '2026-05-23T19:00:00.000Z',
-      questions: [{ choices: ['A', 'B'], correctChoiceIndex: 1, isActive: false, questionId: 'q_1', text: 'Q1' }],
+      questions: [{ choices: ['A', 'B'], isActive: false, questionId: 'q_1', text: 'Q1' }],
       roomCode: 'ABCD',
       status: 'active'
     });
@@ -202,13 +206,13 @@ describe('sessions endpoints', () => {
 
   it('GET /api/sessions/:roomCode/stats returns full votes only to the owner token', async () => {
     vi.mocked(db.getSessionStats).mockResolvedValue({
-      document: {
-        instructorToken: 'st_owner',
-        questions: [{ questionId: 'q_1', votes: { 'student-1': 1 } }],
-        roomCode: 'ABCD',
-        status: 'active'
-      }
-    } as never);
+        document: {
+          instructorToken: 'st_owner',
+          questions: [{ questionId: 'q_1', votes: { [studentId1]: 1 } }],
+          roomCode: 'ABCD',
+          status: 'active'
+        }
+      } as never);
 
     const response = await run('/api/sessions/ABCD/stats', {
       headers: { Authorization: 'Bearer st_owner' },
@@ -218,7 +222,7 @@ describe('sessions endpoints', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       instructorToken: 'st_owner',
-      questions: [{ questionId: 'q_1', votes: { 'student-1': 1 } }],
+      questions: [{ questionId: 'q_1', votes: { [studentId1]: 1 } }],
       roomCode: 'ABCD',
       status: 'active'
     });
@@ -305,7 +309,7 @@ describe('sessions endpoints', () => {
     vi.mocked(db.registerVote).mockClear();
     vi.mocked(db.getSession).mockResolvedValue({
       document: {
-        questions: [{ isActive: true, questionId: 'q_1' }],
+        questions: [{ choices: ['A', 'B'], isActive: true, questionId: 'q_1' }],
         roomCode: 'ABCD',
         status: 'active'
       }
@@ -313,7 +317,7 @@ describe('sessions endpoints', () => {
     vi.mocked(db.registerVote).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never);
 
     const response = await run('/api/sessions/ABCD/vote', {
-      body: JSON.stringify({ choiceIndex: 1, questionId: 'q_1', studentId: 'student-1' }),
+      body: JSON.stringify({ choiceIndex: 1, questionId: 'q_1', studentId: studentId1 }),
       headers: { 'Content-Type': 'application/json' },
       method: 'POST'
     });
@@ -323,15 +327,22 @@ describe('sessions endpoints', () => {
     expect(db.registerVote).toHaveBeenCalledWith(expect.any(Object), 'ABCD', {
       choiceIndex: 1,
       questionId: 'q_1',
-      studentId: 'student-1'
+      studentId: studentId1
     });
   });
 
   it('POST /api/sessions/:roomCode/vote rejects expired questions without writing', async () => {
+    vi.mocked(db.getSession).mockResolvedValue({
+      document: {
+        questions: [{ choices: ['A', 'B'], isActive: true, questionId: 'q_1' }],
+        roomCode: 'ABCD',
+        status: 'active'
+      }
+    } as never);
     vi.mocked(db.registerVote).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never);
 
     const response = await run('/api/sessions/ABCD/vote', {
-      body: JSON.stringify({ choiceIndex: 1, questionId: 'q_1', studentId: 'student-2' }),
+      body: JSON.stringify({ choiceIndex: 1, questionId: 'q_1', studentId: studentId2 }),
       headers: { 'Content-Type': 'application/json' },
       method: 'POST'
     });
@@ -362,7 +373,7 @@ describe('sessions endpoints', () => {
     } as never);
 
     const response = await run('/api/sessions/ABCD/vote', {
-      body: JSON.stringify({ choiceIndex: 1, questionId: 'q_1', studentId: 'student-2' }),
+      body: JSON.stringify({ choiceIndex: 1, questionId: 'q_1', studentId: studentId2 }),
       headers: { 'Content-Type': 'application/json' },
       method: 'POST'
     });

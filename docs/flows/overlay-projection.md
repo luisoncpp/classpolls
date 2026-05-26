@@ -21,9 +21,9 @@ Instructor (or anyone) opens `/overlay/:roomCode` in a browser or OBS browser so
     - Displayed as `Math.ceil(countdownMs / 1000)` seconds
 
 3. **Choice display**
-    - Choices rendered as large non-interactive cards in a centered single-column canvas
-    - When the timer reaches zero, or when `question.isActive === false`, and `correctChoiceIndex` is set, the correct choice card gets a green highlight (`correctChoiceStyle`)
-    - No persistent side rail or sidebar layout is used, so narrow OBS scenes keep the prompt centered
+     - Choices rendered as large non-interactive cards in a centered single-column canvas
+     - When the timer reaches zero and `correctChoiceIndex` is present, the correct choice card gets a green highlight (`correctChoiceStyle`)
+     - No persistent side rail or sidebar layout is used, so narrow OBS scenes keep the prompt centered
 
 4. **State transitions**
     - On `status === "closed"`: polling stops, no error shown (session ended gracefully)

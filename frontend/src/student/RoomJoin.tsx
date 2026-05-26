@@ -19,18 +19,19 @@ export function RoomJoin() {
   useEffect(() => startRoomPolling(joinedRoomCode, controllerRef, dispatcherRef, expiryTimerRef, setJoinError, setRevision, setSession), [joinedRoomCode]);
 
   return (
-    <main style={layoutStyle}>
-      <section style={panelStyle}>
-        <h1>ClassPolls</h1>
-        <p>Enter a room code to join the live session.</p>
-        <form onSubmit={(event) => joinRoom(event, draftRoomCode, setJoinError, setJoinedRoomCode)}>
+    <main className="app-shell join-shell" style={layoutStyle}>
+      <section className="hero-panel" style={heroPanelStyle}>
+        <p style={eyebrowStyle}>Live classroom polling</p>
+        <h1 style={titleStyle}>Join in seconds and answer from any screen.</h1>
+        <p style={subtitleStyle}>Enter the room code from your instructor to submit answers in real time without pinching or fighting the layout on mobile.</p>
+        <form className="responsive-form" onSubmit={(event) => joinRoom(event, draftRoomCode, setJoinError, setJoinedRoomCode)}>
           <input onInput={(event) => setDraftRoomCode((event.currentTarget as HTMLInputElement).value.toUpperCase())} placeholder="ABCD" style={inputStyle} value={draftRoomCode} />
-          <button style={primaryButtonStyle} type="submit">Join room</button>
+          <button className="button-primary" style={primaryButtonStyle} type="submit">Join room</button>
         </form>
-        {joinedRoomCode ? <p>Connected room: <strong>{joinedRoomCode}</strong></p> : null}
+        {joinedRoomCode ? <p style={connectedStyle}>Connected room: <strong className="mono-text">{joinedRoomCode}</strong></p> : null}
         {joinError ? <p style={errorStyle}>{joinError}</p> : null}
       </section>
-      <section style={panelStyle}>
+      <section className="surface-panel" style={panelStyle}>
         {session ? <Grid onVoteError={setJoinError} session={session} voteDispatcher={dispatcherRef.current} /> : <p>Join a room to start polling.</p>}
       </section>
     </main>
@@ -117,7 +118,12 @@ function stopController(
 }
 
 const errorStyle = { color: '#fca5a5' };
-const inputStyle = { borderRadius: '0.75rem', marginRight: '0.75rem', padding: '0.85rem 1rem', width: '180px' };
-const layoutStyle = { color: '#f9fafb', display: 'grid', gap: '1.5rem', margin: '0 auto', maxWidth: '960px', padding: '2rem' };
-const panelStyle = { background: '#111827', borderRadius: '1.25rem', padding: '1.5rem' };
-const primaryButtonStyle = { background: '#2563eb', border: 0, borderRadius: '0.75rem', color: '#fff', padding: '0.85rem 1rem' };
+const connectedStyle = { color: '#cbd5e1', margin: 0 };
+const eyebrowStyle = { color: '#93c5fd', fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.12em', margin: 0, textTransform: 'uppercase' as const };
+const heroPanelStyle = { display: 'grid', gap: '1rem', padding: '1.5rem' };
+const inputStyle = { background: '#0f172a', border: '1px solid #334155', borderRadius: '0.95rem', color: '#f8fafc', padding: '0.9rem 1rem', width: '100%' };
+const layoutStyle = { color: '#f9fafb' };
+const panelStyle = { display: 'grid', gap: '1rem', padding: '1.5rem' };
+const primaryButtonStyle = { borderRadius: '0.95rem' };
+const subtitleStyle = { color: '#94a3b8', lineHeight: 1.6, margin: 0 };
+const titleStyle = { fontSize: 'clamp(2rem, 5vw, 3.3rem)', lineHeight: 1.02, margin: 0 };

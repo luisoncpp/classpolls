@@ -28,7 +28,7 @@ export function Grid({ onVoteError, session, voteDispatcher }: GridProps) {
         <h2 style={titleStyle}>{latestQuestion.text}</h2>
         {countdownMs !== null && !isExpired ? <p style={countdownStyle}>{Math.ceil(countdownMs / 1000)}s</p> : null}
       </div>
-      <p style={statusStyle}>{session.status === 'closed' ? 'Session closed' : isExpired ? 'Time is over' : displayedVote === null ? 'Choose one option' : 'Vote registered'}</p>
+      <p style={statusStyle}>{session.status === 'closed' ? 'Session closed' : isExpired ? 'Time is over' : displayedVote === null ? 'Choose one option' : 'Answer registered'}</p>
       <div style={gridStyle}>
         {latestQuestion.choices.map((choice, index) => renderChoiceButton(latestQuestion, choice, index, displayedVote, isExpired, onVoteError, voteDispatcher, now))}
       </div>
@@ -51,6 +51,7 @@ function renderChoiceButton(
   const disabled = displayedVote !== null || !isQuestionOpen(activeQuestion, now);
   return (
     <button
+      className={disabled ? 'button-soft' : 'button-secondary'}
       disabled={disabled}
       key={`${activeQuestion.questionId}-${index}`}
       onClick={() => void submitVote(activeQuestion.questionId, index, onVoteError, voteDispatcher)}
@@ -90,9 +91,9 @@ const buttonStyle = { background: '#111827', border: '1px solid #334155', border
 const correctStyle = { background: 'rgba(22, 163, 74, 0.22)', border: '1px solid rgba(34, 197, 94, 0.6)' };
 const countdownStyle = { color: '#fde68a', margin: 0 };
 const disabledStyle = { opacity: 0.82 };
-const gridStyle = { display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' };
-const headerStyle = { alignItems: 'center', display: 'flex', gap: '1rem', justifyContent: 'space-between' };
-const sectionStyle = { display: 'grid', gap: '0.8rem' };
+const gridStyle = { display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' };
+const headerStyle = { alignItems: 'start', display: 'flex', flexWrap: 'wrap' as const, gap: '0.75rem', justifyContent: 'space-between' };
+const sectionStyle = { display: 'grid', gap: '0.95rem' };
 const selectedStyle = { background: '#1d4ed8' };
 const statusStyle = { color: '#cbd5e1', margin: 0 };
-const titleStyle = { margin: 0 };
+const titleStyle = { fontSize: 'clamp(1.3rem, 3vw, 2rem)', margin: 0 };

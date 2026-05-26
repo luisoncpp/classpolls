@@ -1,5 +1,6 @@
 import { render } from 'preact';
 
+import './styles.css';
 import { Dashboard } from './instructor';
 import { OBSOverlay } from './overlay';
 import { RoomJoin } from './student';

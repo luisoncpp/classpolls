@@ -31,34 +31,38 @@ export function ClassroomControls({ onRoomClosed, roomCode, token }: ClassroomCo
   const [draft, setDraft] = useState<QuestionDraft>(DEFAULT_DRAFT);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [session, setSession] = useState<SessionStats | null>(null);
 
-  useEffect(() => startStatsPolling(roomCode, token, onRoomClosed, setError, setSession), [onRoomClosed, roomCode, token]);
+  useEffect(() => startStatsPolling(roomCode, token, onRoomClosed, setError, setIsLoadingSession, setSession), [onRoomClosed, roomCode, token]);
   const activeQuestion = session?.questions.find((question) => question.isActive) ?? null;
+  const hasSession = session !== null;
   return (
     <section style={layoutStyle}>
-      <header style={heroStyle}>
+      <header className="hero-panel action-row" style={heroStyle}>
         <div>
           <p style={eyebrowStyle}>Live room</p>
           <h2 style={heroTitleStyle}>{roomCode}</h2>
-          <p style={linkStyle}>{window.location.origin}/overlay/{roomCode}</p>
+          <p className="mono-text" style={linkStyle}>{window.location.origin}/overlay/{roomCode}</p>
         </div>
-        <button disabled={pendingAction === 'close-room'} onClick={() => void closeRoom(roomCode, onRoomClosed, setError, setPendingAction, token)} style={getActionButtonStyle(pendingAction === 'close-room', true)} type="button">{pendingAction === 'close-room' ? 'Closing...' : 'Close room'}</button>
+        <button className={pendingAction === 'close-room' ? 'button-soft' : 'button-ghost'} disabled={pendingAction === 'close-room'} onClick={() => void closeRoom(roomCode, onRoomClosed, setError, setPendingAction, token)} style={getActionButtonStyle(pendingAction === 'close-room', true)} type="button">{pendingAction === 'close-room' ? 'Closing...' : 'Close room'}</button>
       </header>
       {error ? <p style={errorStyle}>{error}</p> : null}
-      <section style={panelStyle}>
+      <section className="surface-panel" style={panelStyle}>
         <div style={panelHeaderStyle}>
           <div>
             <p style={eyebrowStyle}>Queue</p>
             <h3 style={sectionTitleStyle}>Questions</h3>
           </div>
-          <span style={countBadgeStyle}>{session?.questions.length ?? 0} loaded</span>
+          <span className="status-pill" style={countBadgeStyle}>{session?.questions.length ?? 0} loaded{isLoadingSession && hasSession ? ' · refreshing' : ''}</span>
         </div>
-        <div style={questionGridStyle}>{session?.questions.map((question) => renderQuestionCard(question, pendingAction, roomCode, setError, setPendingAction, setSession, token))}</div>
+        {isLoadingSession && !hasSession ? <p className="loading-indicator" style={loadingStyle}>Loading questions...</p> : null}
+        {session?.questions.length ? <div style={questionGridStyle}>{session.questions.map((question) => renderQuestionCard(question, pendingAction, roomCode, setError, setPendingAction, setSession, token))}</div> : null}
+        {!isLoadingSession && hasSession && session.questions.length === 0 ? <p style={emptyStateStyle}>No questions launched yet. Use the custom question editor below to push the first prompt live.</p> : null}
       </section>
       <section style={twoColumnStyle}>
-        <section style={panelStyle}>
+        <section className="surface-panel" style={panelStyle}>
           <QuestionEditor
             actionLabel="Launch custom question"
             draft={draft}
@@ -70,7 +74,7 @@ export function ClassroomControls({ onRoomClosed, roomCode, token }: ClassroomCo
             title="Custom question"
           />
         </section>
-        <section style={panelStyle}><StatsView question={activeQuestion} /></section>
+        <section className="surface-panel" style={panelStyle}>{isLoadingSession && !hasSession ? <p className="loading-indicator" style={loadingStyle}>Loading stats...</p> : <StatsView question={activeQuestion} />}</section>
       </section>
     </section>
   );
@@ -137,15 +141,17 @@ async function loadStats(roomCode: string, token: string, setError: (value: stri
 
 function renderQuestionCard(question: SessionQuestion, pendingAction: string | null, roomCode: string, setError: (value: string | null) => void, setPendingAction: (value: string | null) => void, setSession: (value: SessionStats | null) => void, token: string) {
   const isPending = pendingAction === `activate-${question.questionId}`;
-  return <article key={question.questionId} style={cardStyle}><div style={cardBodyStyle}><strong>{question.text}</strong><p style={mutedStyle}>{question.choices.join(' / ')}</p><p style={metaStyle}>{toQuestionMeta(question)}</p></div><button disabled={isPending} onClick={() => void activateQuestion(question.questionId, roomCode, setError, setPendingAction, setSession, token)} style={getActionButtonStyle(question.isActive || isPending, false)} type="button">{isPending ? 'Launching...' : question.isActive ? 'Active now' : 'Go live'}</button></article>;
+  return <article className="interactive-card split-card" key={question.questionId} style={cardStyle}><div style={cardBodyStyle}><strong>{question.text}</strong><p style={mutedStyle}>{question.choices.join(' / ')}</p><p style={metaStyle}>{toQuestionMeta(question)}</p></div><button className={question.isActive || isPending ? 'button-soft' : 'button-primary'} disabled={isPending} onClick={() => void activateQuestion(question.questionId, roomCode, setError, setPendingAction, setSession, token)} style={getActionButtonStyle(question.isActive || isPending, false)} type="button">{isPending ? 'Launching...' : question.isActive ? 'Active now' : 'Go live'}</button></article>;
 }
 
-function startStatsPolling(roomCode: string, token: string, onRoomClosed: () => void, setError: (value: string | null) => void, setSession: (value: SessionStats | null) => void) {
+function startStatsPolling(roomCode: string, token: string, onRoomClosed: () => void, setError: (value: string | null) => void, setIsLoadingSession: (value: boolean) => void, setSession: (value: SessionStats | null) => void) {
   let mounted = true;
   let timerId: number | null = null;
   const refresh = async () => {
+    setIsLoadingSession(true);
     const nextSession = await loadStats(roomCode, token, setError, setSession, () => mounted);
     if (!mounted) return;
+    setIsLoadingSession(false);
     if (nextSession?.status === 'closed') return onRoomClosed();
     timerId = window.setTimeout(/*pollStats*/ refresh, /*delayInMs=*/3000);
   };
@@ -170,19 +176,21 @@ function getActionButtonStyle(isPressed: boolean, muted: boolean) {
 
 const activeButtonStyle = { background: 'rgba(34, 197, 94, 0.18)', border: '1px solid rgba(74, 222, 128, 0.4)', borderRadius: '999px', color: '#dcfce7', padding: '0.8rem 1rem' };
 const cardBodyStyle = { display: 'grid', gap: '0.35rem' };
-const cardStyle = { alignItems: 'center', background: '#020617', border: '1px solid #1e293b', borderRadius: '1.2rem', display: 'flex', flexWrap: 'wrap' as const, gap: '1rem', justifyContent: 'space-between', padding: '1rem 1.1rem' };
+const cardStyle = { alignItems: 'start', background: '#020617', border: '1px solid #1e293b', borderRadius: '1.2rem', padding: '1rem 1.1rem' };
 const countBadgeStyle = { background: 'rgba(59, 130, 246, 0.14)', border: '1px solid rgba(96, 165, 250, 0.35)', borderRadius: '999px', color: '#bfdbfe', padding: '0.5rem 0.9rem' };
+const emptyStateStyle = { color: '#94a3b8', margin: 0 };
 const errorStyle = { color: '#fca5a5', margin: 0 };
 const eyebrowStyle = { color: '#60a5fa', fontSize: '0.78rem', letterSpacing: '0.12em', margin: 0, textTransform: 'uppercase' as const };
 const ghostButtonStyle = { background: 'transparent', border: '1px solid #475569', borderRadius: '999px', color: '#e2e8f0', padding: '0.8rem 1rem' };
-const heroStyle = { alignItems: 'center', background: 'linear-gradient(160deg, rgba(30, 41, 59, 0.95), rgba(2, 6, 23, 0.96))', border: '1px solid rgba(96, 165, 250, 0.16)', borderRadius: '1.8rem', display: 'flex', flexWrap: 'wrap' as const, gap: '1rem', justifyContent: 'space-between', padding: '1.4rem 1.5rem' };
+const heroStyle = { alignItems: 'center', gap: '1rem', justifyContent: 'space-between', padding: '1.4rem 1.5rem' };
 const heroTitleStyle = { fontSize: '2.4rem', margin: '0.2rem 0 0' };
 const layoutStyle = { display: 'grid', gap: '1rem' };
 const linkStyle = { color: '#bfdbfe', margin: '0.35rem 0 0' };
+const loadingStyle = { margin: 0 };
 const metaStyle = { color: '#cbd5e1', margin: 0 };
 const mutedStyle = { color: '#94a3b8', margin: 0 };
 const panelHeaderStyle = { alignItems: 'center', display: 'flex', flexWrap: 'wrap' as const, gap: '0.75rem', justifyContent: 'space-between' };
-const panelStyle = { background: 'rgba(15, 23, 42, 0.82)', border: '1px solid #1e293b', borderRadius: '1.5rem', display: 'grid', gap: '1rem', padding: '1.3rem' };
+const panelStyle = { display: 'grid', gap: '1rem', padding: '1.3rem' };
 const primaryButtonStyle = { background: 'linear-gradient(135deg, #3b82f6, #2563eb)', border: 0, borderRadius: '999px', color: '#eff6ff', padding: '0.8rem 1rem' };
 const pressedGhostButtonStyle = { background: 'rgba(59, 130, 246, 0.14)', border: '1px solid rgba(96, 165, 250, 0.35)', borderRadius: '999px', color: '#dbeafe', padding: '0.8rem 1rem' };
 const questionGridStyle = { display: 'grid', gap: '0.8rem' };

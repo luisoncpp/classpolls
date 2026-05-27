@@ -42,4 +42,38 @@ describe('ClassroomControls', () => {
 
     view.unmount();
   });
+
+  it('keeps the queue badge text stable while a refresh is in flight', async () => {
+    vi.useFakeTimers();
+    const session = { questions: [{ choices: ['Yes', 'No'], isActive: true, questionId: 'q1', text: 'First question', votes: {} }], roomCode: 'ROOM', status: 'active' as const };
+    let resolveRefresh: ((value: typeof session) => void) | null = null;
+
+    requestJsonMock.mockResolvedValueOnce(session);
+    requestJsonMock.mockImplementationOnce(
+      () => new Promise((resolve) => {
+        resolveRefresh = resolve;
+      })
+    );
+
+    const view = render(<ClassroomControls onRoomClosed={vi.fn()} roomCode="ROOM" token="token" />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('1 loaded')).toBeInTheDocument();
+    expect(screen.queryByText(/refreshing/i)).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefresh?.(session);
+      await Promise.resolve();
+    });
+
+    view.unmount();
+  });
 });

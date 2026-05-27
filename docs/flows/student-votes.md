@@ -21,6 +21,7 @@ Student enters a room code on the home page and clicks "Join room".
 3. **Polling loop**
     - Every 3s: `GET /api/sessions/:roomCode?studentId=...`
     - Response parsed as `PublicSession` → `setSession()` updates state
+    - The student view only shows an active question, or the most recently launched question (`startedAt` present); queued plan questions stay hidden until first activation
     - `handleUpdate` also calls `VoteDispatcher.sync()` if a pending vote exists
     - When an active timed question is close to expiring, the client schedules an extra immediate poll right after the countdown crosses zero so the revealed answer arrives without waiting for the next 3s interval
     - On `status === "closed"`: polling stops, UI shows "Session closed"
@@ -34,7 +35,7 @@ Student enters a room code on the home page and clicks "Join room".
      - Optimistic: `pendingVote` set immediately, component re-renders via `onChange`
      - Button locks: `displayedVote !== null` disables all buttons
      - `POST /api/sessions/:roomCode/vote` with `{ choiceIndex, questionId, studentId }`
-     - Backend rejects malformed vote payloads with `400 INVALID_VOTE` before touching Mongo
+     - Backend rejects malformed vote payloads with `400 INVALID_VOTE` before touching the database
      - When the countdown reaches `0`, voting buttons disable immediately on the client
      - When the timer is over and `correctChoiceIndex` is present, the correct choice is highlighted
      - On API error: error message displayed, vote remains locked or reverts on next sync

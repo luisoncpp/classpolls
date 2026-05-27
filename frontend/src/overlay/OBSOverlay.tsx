@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { SessionPollingController } from '../common/SessionPollingController';
-import { PublicSession, getActiveQuestion, getCountdownMs, isPollError, isQuestionExpired } from '../common/session';
+import { PublicSession, getActiveQuestion, getCountdownMs, getDisplayQuestion, isPollError, isQuestionExpired } from '../common/session';
 
 type OBSOverlayProps = {
   roomCode: string;
@@ -21,7 +21,7 @@ export function OBSOverlay({ roomCode }: OBSOverlayProps) {
   if (!session) return <main style={overlayLayoutStyle}><p>Waiting for room data...</p></main>;
 
   const activeQuestion = getActiveQuestion(session);
-  const displayQuestion = activeQuestion ?? session.questions[session.questions.length - 1] ?? null;
+  const displayQuestion = getDisplayQuestion(session);
   const countdownMs = displayQuestion ? getCountdownMs(displayQuestion, now) : null;
   const revealCorrectAnswer = displayQuestion
     ? isQuestionExpired(displayQuestion, now) && typeof displayQuestion.correctChoiceIndex === 'number'

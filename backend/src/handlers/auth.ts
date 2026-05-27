@@ -15,8 +15,8 @@ function generateInstructorToken(): string {
   return `st_${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 }
 
-function hasMongoConfig(env: Env): boolean {
-  return Boolean(env.MONGODB_URI);
+function hasDatabaseConfig(env: Env): boolean {
+  return Boolean(env.DB);
 }
 
 export async function handleGoogleAuth(request: Request, env: Env): Promise<Response> {
@@ -33,7 +33,7 @@ export async function handleGoogleAuth(request: Request, env: Env): Promise<Resp
     throw new HttpError(401, 'INVALID_GOOGLE_TOKEN', 'Google token verification failed');
   }
 
-  if (!hasMongoConfig(env)) {
+  if (!hasDatabaseConfig(env)) {
     return json({ instructorToken: await fallbackInstructorToken(payload.sub) });
   }
 
@@ -49,5 +49,5 @@ async function upsertInstructor(ctx: db.DbContext, payload: any): Promise<string
     picture: payload.picture
   });
   const existing = await db.getInstructorByGoogleId(ctx, payload.sub);
-  return existing.document?.instructorToken ?? newToken;
+  return typeof existing.document?.instructorToken === 'string' ? existing.document.instructorToken : newToken;
 }

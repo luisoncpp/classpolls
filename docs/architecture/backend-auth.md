@@ -6,7 +6,7 @@
 Cloudflare Workers do not support standard Node.js crypto and HTTP libraries in the exact same way a standard Node server does. Therefore, using the official `google-auth-library` is prone to bundle errors.
 
 ## Token Generation
-The `instructorToken` (`st_...`) is generated via `crypto.getRandomValues(new Uint8Array(16))`, producing a 32-hex-char suffix (`st_{32 hex}`). When MongoDB is not configured (local dev without Atlas), a deterministic fallback uses `SHA-256(googleId)` truncated to 32 hex chars, signed with `st_` prefix — this avoids storing state but still provides a consistent per-user token.
+The `instructorToken` (`st_...`) is generated via `crypto.getRandomValues(new Uint8Array(16))`, producing a 32-hex-char suffix (`st_{32 hex}`). When the D1 binding is not configured, a deterministic fallback uses `SHA-256(googleId)` truncated to 32 hex chars, signed with `st_` prefix — this avoids storing state but still provides a consistent per-user token.
 
 ## Implementation Details
 1. **The JWT Verifier (`src/auth/google.ts`)**:

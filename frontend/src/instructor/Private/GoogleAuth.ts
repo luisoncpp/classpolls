@@ -23,6 +23,7 @@ export class GoogleAuth {
       });
       this.initialized = true;
     }
+    element.replaceChildren();
     google.accounts.id.renderButton(element, { size: 'large', theme: 'outline' });
   }
 }

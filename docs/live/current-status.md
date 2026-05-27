@@ -2,88 +2,57 @@
 
 ## What is Implemented
 
-### Backend (Cloudflare Workers + MongoDB driver)
+### Backend (Cloudflare Workers + D1)
 
 - **Google OAuth Authentication** (`POST /api/auth/google`):
   - Verifies Google ID tokens with `jose` JWKS.
-  - Creates or retrieves instructors in MongoDB.
+  - Creates or retrieves instructors in D1.
   - Returns `st_...` tokens generated via `crypto.getRandomValues`.
 
 - **Plan Management** (full CRUD):
-  - `GET /api/plans` — list plans filtered by instructor token.
-  - `POST /api/plans` — create a plan with a title.
-  - `GET /api/plans/:planId` — get a single plan.
-  - `DELETE /api/plans/:planId` — delete a plan.
-  - `POST /api/plans/:planId/questions` — add a question with optional `timeLimit` and `correctChoiceIndex`.
-  - `DELETE /api/plans/:planId/questions/:questionId` — remove a question.
+  - `GET /api/plans`
+  - `POST /api/plans`
+  - `GET /api/plans/:planId`
+  - `DELETE /api/plans/:planId`
+  - `POST /api/plans/:planId/questions`
+  - `DELETE /api/plans/:planId/questions/:questionId`
 
 - **Session Lifecycle**:
-  - `POST /api/sessions` — create a room from a plan (copies questions as inactive).
-  - `GET /api/sessions/:roomCode` — public student polling (no auth, strips `instructorToken`/`votes`, injects `myVote`).
-  - `GET /api/sessions/:roomCode/stats` — instructor stats (full votes dictionary, requires bearer token).
-  - `POST /api/sessions/:roomCode/questions/custom` — inject ad-hoc question; auto-deactivates others if `activate=true`.
-  - `POST /api/sessions/:roomCode/questions/:questionId/activate` — activate one question, deactivate all others.
-  - `POST /api/sessions/:roomCode/questions/deactivate` — deactivate the active question.
-  - `POST /api/sessions/:roomCode/vote` — register a student vote (server-side enforce active question + open session).
-  - `POST /api/sessions/:roomCode/close` — close the session.
+  - `POST /api/sessions`
+  - `GET /api/sessions/:roomCode`
+  - `GET /api/sessions/:roomCode/stats`
+  - `POST /api/sessions/:roomCode/questions/custom`
+  - `POST /api/sessions/:roomCode/questions/:questionId/activate`
+  - `POST /api/sessions/:roomCode/questions/deactivate`
+  - `POST /api/sessions/:roomCode/vote`
+  - `POST /api/sessions/:roomCode/close`
 
-- **Bug fix applied**: `POST /api/sessions/:roomCode/questions/custom` with `activate=true` now deactivates other active questions first (only one active question at a time).
-
-- **MongoDB integration**:
-  - Official `mongodb` driver (no Atlas Data API).
-  - Cached `MongoClient` singleton per Worker isolate.
-  - Retry/reset logic for connection errors (`withRetry`, `resetClient`).
-  - Defensive reset on uncaught request failures and database-operation timeouts to avoid poisoning later requests in the same isolate.
-  - `withDatabase<T>()` helper that auto-closes temp clients when no-cache mode is on.
+- **D1 integration**:
+  - Worker `DB` binding is the only required database input.
+  - SQL schema lives in `backend/migrations/0001_init.sql`.
+  - Plans and sessions store question arrays as JSON text columns.
+  - Session and plan rewrites use optimistic `version` checks.
 
 - **Deployment**:
   - Live at `https://classpolls-backend.luison-cpp.workers.dev`.
-  - Secrets: `MONGODB_URI`, `GOOGLE_CLIENT_ID` (both set via `wrangler secret put`).
-  - `wrangler.toml` only contains non-sensitive config (`name`, `compatibility_date/flags`, `MONGODB_DATABASE`).
-
-### Config & Security
-
-- `MONGODB_URI` and `GOOGLE_CLIENT_ID` moved out of `wrangler.toml` into `backend/.dev.vars` (git-ignored) and remote secrets.
-- Local dev reads `MONGODB_URI` from `.dev.vars` (Wrangler auto-loads it).
-- Deploy uses secrets; `wrangler.toml` has no credentials.
+  - Secret: `GOOGLE_CLIENT_ID`.
+  - `wrangler.toml` contains the `DB` binding metadata.
 
 ### Testing
 
-- 19 unit tests across 3 suites (auth, plans, sessions).
-- All tests mock `db/index.ts` for isolation.
+- Unit tests mock `db/index.ts` for handler isolation.
 - Vitest configured with TypeScript.
 
 ### Frontend
 
-- **Instructor dashboard**:
-  - Google sign-in flow wired.
-  - Plan list, plan detail editor, question add/remove, and live room launch implemented.
-  - Shared question templates available for reusable plan questions and custom live questions.
-  - Question authoring supports optional `timeLimit` and `correctChoiceIndex`.
-
-- **Live classroom controls**:
-  - Instructor can activate queued questions, launch custom questions, inspect overlay URL, and close the room.
-  - Instructor actions show visible pending feedback while requests are in flight.
-  - Active-question stats render vote totals and highlight the configured correct answer.
-
-- **OBS overlay**:
-  - Polls the public session endpoint.
-  - Shows the current question in a compact centered layout suitable for narrow or wide capture scenes.
-  - Shows countdown when `timeLimit` exists.
-  - Reveals the correct answer after the timer expires or the question is no longer active.
-
-- **Student frontend**:
-  - Room join, polling, anonymous identity bootstrap, and vote dispatch are implemented.
-  - Student view shows the countdown, disables voting at `0`, and reveals the correct answer after expiry.
+- Instructor dashboard, live classroom controls, OBS overlay, and student vote flow remain implemented.
 
 ## What is NOT Implemented
 
-- **MongoDB indexes**: not created yet. Run manually in Atlas UI or add a migration script.
-- **`roomCode` collision retry**: `createSession` does not retry on duplicate `roomCode`.
+- **`roomCode` collision retry**: `createSession` does not retry on duplicate `roomCode` yet.
+- **Mongo -> D1 data migration script**: schema exists, but old Atlas data is not automatically imported.
 
 ## Known Limitations
 
-- **`wrangler dev` latency**: local Miniflare dev with `mongodb` driver is slow (2–6s per request). Use `wrangler dev --remote` or deploy for realistic timings.
-- **Deployed latency**: typically ~0.8–1s per request; occasional outliers of ~3–6s due to Atlas M0 free tier.
-- **Windows + Miniflare**: the `mongodb` driver has known issues with SRV DNS resolution in Miniflare. Use non-SRV connection strings for local dev on Windows if SRV fails.
-- **Max listeners warning**: `node:events` `setMaxListeners(20)` applied in `client.ts` to suppress Mongo driver warnings in dev.
+- Plan/session question arrays are rewritten as JSON blobs, so concurrency safety depends on the `version` guard in `src/db/index.ts`.
+- `wrangler.toml` still needs a real D1 `database_id` before deploy.

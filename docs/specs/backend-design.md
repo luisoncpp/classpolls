@@ -1,7 +1,7 @@
-# Backend Technical Specification (Cloudflare Workers + MongoDB Driver)
+# Backend Technical Specification (Cloudflare Workers + D1)
 
 ## 1. Architectural Overview
-The backend is a stateless REST API deployed on Cloudflare Workers. It performs request validation, auth, and session business rules while talking directly to MongoDB Atlas through the official `mongodb` driver. The Worker enables `nodejs_compat` so the driver can use TCP sockets from the Workers runtime.
+The backend is a stateless REST API deployed on Cloudflare Workers. It performs request validation, auth, and session business rules while talking directly to a Cloudflare D1 database through the Worker `DB` binding.
 
 For authentication, the backend validates Google ID Tokens (JWTs) using Google's public JWKS.
 
@@ -22,7 +22,8 @@ backend/src/
 └── db/
     ├── index.ts          # Public interface — all DB functions live here
     └── Private/
-        └── client.ts     # MongoClient bootstrap/cache — never imported outside db/
+        ├── client.ts     # D1 binding context — never imported outside db/
+        └── documents.ts  # Row -> document mapping helpers
 ```
 
 ---
@@ -46,7 +47,7 @@ Every non-2xx response uses exactly:
 - Status codes: `400`, `401`, `403`, `404`, `409`, `500`.
 
 ### 2.3 Timestamps on the Wire
-MongoDB documents use native `Date` values in the backend. Handlers normalize them to plain ISO strings before responding. The frontend never sees raw driver objects.
+The DB layer maps D1 timestamp strings back into `Date` objects before returning documents to handlers. Handlers normalize them to plain ISO strings before responding.
 
 ### 2.4 Identifier Formats
 - `instructorToken`: `st_` + 32 hex chars from `crypto.getRandomValues(new Uint8Array(16))`
@@ -57,7 +58,7 @@ MongoDB documents use native `Date` values in the backend. Handlers normalize th
 ### 2.5 `roomCode` Generation & Collisions
 4-character uppercase alphanumeric excluding ambiguous chars (`0/O`, `1/I/L`).
 
-- `sessions.roomCode` must have a unique index in MongoDB.
+- `sessions.roomCode` must stay unique in D1.
 - `createSession` should retry a few times on duplicate-key errors.
 - Exhaustion returns `409 ROOM_CODE_EXHAUSTED`.
 
@@ -68,12 +69,11 @@ Protected endpoints read `Authorization: Bearer <instructorToken>`. `requireToke
 
 ## 3. Data Model
 
-### 3.1 Collections
+### 3.1 Tables
 
 **`instructors`**
 ```json
 {
-  "_id": "ObjectId",
   "googleId": "10984392483...",
   "email": "prof.smith@university.edu",
   "name": "Prof. Smith",
@@ -86,7 +86,7 @@ Protected endpoints read `Authorization: Bearer <instructorToken>`. `requireToke
 **`plans`**
 ```json
 {
-  "_id": "ObjectId",
+  "_id": "uuid",
   "instructorToken": "st_5a2f8c9b3e10...",
   "title": "Data Structures 101",
   "questions": [
@@ -104,7 +104,7 @@ Protected endpoints read `Authorization: Bearer <instructorToken>`. `requireToke
 **`sessions`**
 ```json
 {
-  "_id": "ObjectId",
+  "_id": "uuid",
   "roomCode": "NXKB",
   "instructorToken": "st_5a2f8c9b3e10...",
   "planId": "64f...",
@@ -133,11 +133,11 @@ Protected endpoints read `Authorization: Bearer <instructorToken>`. `requireToke
 ## 4. Deep Module: Database Client Interface
 
 ### 4.1 Private Connection Layer
-`backend/src/db/Private/client.ts` owns Mongo connection bootstrap.
+`backend/src/db/Private/client.ts` owns the D1 context type.
 
-- `MongoClient` is cached in module scope.
-- The backend passes a `DbContext` containing `uri` and `database`.
+- The backend passes a `DbContext` containing the `DB` binding.
 - Route handlers never import the private client directly.
+- `backend/src/db/Private/documents.ts` converts rows and JSON columns into handler-facing documents.
 
 ### 4.2 Public DB Surface
 Public functions in `backend/src/db/index.ts` wrap domain operations and hide driver details:
@@ -167,8 +167,8 @@ closeSession(ctx, roomCode, instructorToken)
 ### 4.3 Test Injection Pattern
 Tests mock the public `db/index.ts` boundary with `vi.mock('../src/db/index')` and assert handler behavior against that public contract. They do not assert driver internals or socket behavior.
 
-### 4.4 Atomicity Rule
-`activateQuestion`, `deactivateQuestion`, and `registerVote` should use single Mongo update operations with `arrayFilters` so state changes remain atomic.
+### 4.4 Concurrency Rule
+`activateQuestion`, `deactivateQuestion`, `registerVote`, and question-list rewrites use optimistic `version` checks in D1. Future changes must preserve that guard to avoid lost updates.
 
 ---
 

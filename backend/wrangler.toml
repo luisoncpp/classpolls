@@ -3,5 +3,8 @@ main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-[vars]
-MONGODB_DATABASE = "test"
+[[d1_databases]]
+binding = "DB"
+database_name = "classpolls"
+database_id = "d5e9de89-64fe-43cc-bffa-8988cce40648"
+migrations_dir = "migrations"

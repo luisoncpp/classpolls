@@ -1,3 +1,4 @@
+import { apiUrl } from './apiClient';
 import { PollError, PublicSession } from './session';
 
 const POLL_INTERVAL_IN_MS = 3000;
@@ -51,7 +52,9 @@ export class SessionPollingController {
   }
 
   private getPollingUrl(): string {
-    if (!this.studentId) return `/api/sessions/${this.currentRoomCode}`;
-    return `/api/sessions/${this.currentRoomCode}?studentId=${this.studentId}`;
+    const path = this.studentId
+      ? `/api/sessions/${this.currentRoomCode}?studentId=${this.studentId}`
+      : `/api/sessions/${this.currentRoomCode}`;
+    return apiUrl(path);
   }
 }

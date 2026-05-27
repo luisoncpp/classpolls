@@ -1,14 +1,11 @@
 import { handleGoogleAuth } from './handlers/auth';
 import { resetClient, getInstructorByGoogleId } from './db';
-import type { DbContext } from './db';
 import { HttpError, getDbContext, json, toErrorResponse } from './handlers/_shared';
 import { handlePlans } from './handlers/plans';
 import { handleSessions } from './handlers/sessions';
 
 export interface Env {
-  LOCAL_DEV_NO_CACHE?: string;
-  MONGODB_DATABASE: string;
-  MONGODB_URI: string;
+  DB?: D1Database;
   GOOGLE_CLIENT_ID: string;
 }
 

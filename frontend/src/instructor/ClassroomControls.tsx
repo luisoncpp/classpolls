@@ -55,7 +55,7 @@ export function ClassroomControls({ onRoomClosed, roomCode, token }: ClassroomCo
             <p style={eyebrowStyle}>Queue</p>
             <h3 style={sectionTitleStyle}>Questions</h3>
           </div>
-          <span className="status-pill" style={countBadgeStyle}>{session?.questions.length ?? 0} loaded{isLoadingSession && hasSession ? ' · refreshing' : ''}</span>
+          <span className="status-pill" style={countBadgeStyle}>{session?.questions.length ?? 0} loaded</span>
         </div>
         {isLoadingSession && !hasSession ? <p className="loading-indicator" style={loadingStyle}>Loading questions...</p> : null}
         {session?.questions.length ? <div style={questionGridStyle}>{session.questions.map((question) => renderQuestionCard(question, pendingAction, roomCode, setError, setPendingAction, setSession, token))}</div> : null}

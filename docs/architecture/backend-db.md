@@ -3,59 +3,70 @@
 **Location**: `backend/src/db/`
 
 ## Philosophy
-The backend connects to MongoDB Atlas using the official `mongodb` driver directly from Cloudflare Workers. The Worker runtime enables `nodejs_compat`, and the private DB layer owns the connection lifecycle so route handlers stay free of driver details.
+The backend now stores instructors, plans, and sessions in Cloudflare D1 through a small DB deep module. Handlers still talk only in domain operations; SQL, JSON persistence, row mapping, and optimistic concurrency stay inside `src/db`.
 
 ## The Deep Module Rule
 
-1. **Private Layer (`src/db/Private/client.ts`)**
-   - Creates and caches the `MongoClient` in module scope.
-   - Returns a `Db` instance from the configured `MONGODB_URI` and database name.
-   - Is never imported by handlers.
-   - When `LOCAL_DEV_NO_CACHE=1` is set, creates a fresh client per call and closes it in the `finally` block.
+1. **Private Layer**
+   - `src/db/Private/client.ts` defines `DbContext` as the Worker `D1Database` binding.
+   - `src/db/Private/documents.ts` maps D1 rows into handler-facing documents.
+   - Handlers never import these files directly.
 
 2. **Public Layer (`src/db/index.ts`)**
-   - Exposes domain operations — plans, sessions, instructors.
-   - Keeps the public API small and business-focused.
-   - Hides `ObjectId`, collection names, and Mongo update syntax from handlers.
+   - Exposes domain operations only.
+   - Preserves the old handler contract: `{ document }`, `{ documents }`, `insertedId`, `matchedCount`, `modifiedCount`, `deletedCount`.
+   - Hides table names, JSON columns, and optimistic-write details from handlers.
 
-## Connection Lifecycle
+## Storage Model
 
-- `MongoClient` is created once and cached in module-level `state`.
-- `connectTimeoutMS`, `serverSelectionTimeoutMS`, and `socketTimeoutMS` are all set to 5000ms.
-- A `maxIdleTimeMS` of 30000ms allows idle connections to be reclaimed.
-- `resetClient()` clears the cache and closes the previous client — called by `withRetry` on transient errors.
+- `instructors`
+  - One row per Google account.
+  - `google_id` is the primary key.
+  - `instructor_token` stays stable after first insert.
 
-## Retry on Transient Errors
+- `plans`
+  - `questions` are stored in `questions_json` as a JSON array.
+  - `version` increments on every question-list rewrite.
 
-`withRetry` wraps every DB operation. On failure it checks `shouldRetry`: if the error message matches a known transient pattern (`connection`, `socket`, `server selection`, `topology`, `closed`, `timed out`), it calls `resetClient()` and retries once. Non-transient errors (e.g. `MongoServerError` for duplicate keys) are not retried.
+- `sessions`
+  - `room_code` is unique.
+  - `questions` are stored in `questions_json` as a JSON array.
+  - `version` increments on every question or vote rewrite.
+
+## Concurrency Rule
+
+Question activation, deactivation, custom-question insertion, vote registration, and plan question edits are implemented as:
+
+1. read row
+2. compute next JSON document in memory
+3. `UPDATE ... WHERE version = ?`
+
+If the row changed in between, the update returns `0` changes and the DB layer retries once with fresh state. Future changes must preserve this optimistic concurrency guard; plain read-then-write with no version check is a bug.
 
 ## Public Surface
 
 ### Instructors
-- `getInstructorByGoogleId(ctx, googleId)` → `{ document }`
-- `upsertInstructor(ctx, googleId, profile)` — `$set` mutable fields, `$setOnInsert` for `googleId`, `createdAt`, `instructorToken`
+- `getInstructorByGoogleId(ctx, googleId)`
+- `upsertInstructor(ctx, googleId, profile)`
 
 ### Plans
-- `listPlans(ctx, token)` — projection: `{ title: 1 }`
-- `createPlan(ctx, token, title)` — creates `{ instructorToken, questions: [], title }`
-- `getPlan(ctx, token, planId)` — filtered by `instructorToken`
-- `getPlanById(ctx, planId)` — unfiltered (used internally by session creation)
+- `listPlans(ctx, token)`
+- `createPlan(ctx, token, title)`
+- `getPlan(ctx, token, planId)`
+- `getPlanById(ctx, planId)`
 - `deletePlan(ctx, token, planId)`
-- `addQuestionToPlan(ctx, planId, { instructorToken, question })` — `$push`
-- `removeQuestionFromPlan(ctx, planId, { instructorToken, questionId })` — `$pull`
+- `addQuestionToPlan(ctx, planId, payload)`
+- `removeQuestionFromPlan(ctx, planId, payload)`
 
 ### Sessions
-- `createSession(ctx, token, { planId?, questions, roomCode })` — inserts with `status: "active"`
-- `getSession(ctx, roomCode)` — no auth filter (public endpoint)
-- `getSessionStats(ctx, token, roomCode)` — filtered by `instructorToken`
-- `addCustomQuestion(ctx, roomCode, { instructorToken, question })` — `$push`
-- `activateQuestion(ctx, roomCode, { instructorToken, questionId })` — single `updateOne` with `arrayFilters`
+- `createSession(ctx, token, payload)`
+- `getSession(ctx, roomCode)`
+- `getSessionStats(ctx, token, roomCode)`
+- `addCustomQuestion(ctx, roomCode, payload)`
+- `activateQuestion(ctx, roomCode, payload)`
 - `deactivateQuestion(ctx, roomCode, instructorToken)`
-- `registerVote(ctx, roomCode, { choiceIndex, questionId, studentId })` — single `updateOne` with `arrayFilters`
+- `registerVote(ctx, roomCode, vote)`
 - `closeSession(ctx, roomCode, instructorToken)`
 
-## Atomicity Rule
-`activateQuestion` and `registerVote` use single `updateOne` + `arrayFilters` to avoid race conditions. Two round-trips is a bug.
-
 ## Testing
-Unit tests mock `backend/src/db/index` with `vi.mock`. They validate handler behavior against the public DB contract rather than asserting driver calls.
+Unit tests still mock `backend/src/db/index.ts`. They validate handler behavior against the DB contract instead of asserting SQL text or D1 APIs.

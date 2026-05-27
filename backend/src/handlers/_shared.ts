@@ -20,10 +20,9 @@ export function conflict(code: string, message: string): never {
 }
 
 export function getDbContext(env: Env): DbContext {
+  if (!env.DB) throw new HttpError(500, 'DB_NOT_CONFIGURED', 'Database not configured');
   return {
-    database: env.MONGODB_DATABASE,
-    noCache: env.LOCAL_DEV_NO_CACHE === '1',
-    uri: env.MONGODB_URI
+    db: env.DB
   };
 }
 

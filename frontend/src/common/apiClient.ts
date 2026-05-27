@@ -24,6 +24,13 @@ export class ApiError extends Error {
   }
 }
 
+export function apiUrl(path: string): string {
+  if (import.meta.env.VITE_API_ORIGIN && path.startsWith('/api/')) {
+    return `${import.meta.env.VITE_API_ORIGIN}${path}`;
+  }
+  return path;
+}
+
 export function clearInstructorToken(): void {
   window.localStorage.removeItem(INSTRUCTOR_TOKEN_KEY);
   clearInstructorRoomCode();
@@ -45,13 +52,6 @@ export function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return 'Unexpected request error';
-}
-
-function apiUrl(path: string): string {
-  if (import.meta.env.VITE_API_ORIGIN && path.startsWith('/api/')) {
-    return `${import.meta.env.VITE_API_ORIGIN}${path}`;
-  }
-  return path;
 }
 
 export async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {

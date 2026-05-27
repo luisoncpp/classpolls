@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 
-import { clearInstructorRoomCode, getErrorMessage, getInstructorRoomCode, getInstructorToken, requestJson, setInstructorRoomCode, setInstructorToken } from '../common/apiClient';
+import { clearInstructorRoomCode, clearInstructorToken, getErrorMessage, getInstructorRoomCode, getInstructorToken, requestJson, setInstructorRoomCode, setInstructorToken } from '../common/apiClient';
 import { ClassroomControls } from './ClassroomControls';
 import { GoogleAuth } from './Private/GoogleAuth';
 import { PlanManager } from './Private/PlanManager';
@@ -18,7 +18,10 @@ export function Dashboard() {
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const authRef = useRef<GoogleAuth | null>(null);
 
-  useEffect(() => mountGoogleButton(authRef, googleButtonRef, setError, setToken), []);
+  useEffect(() => {
+    if (token) return;
+    mountGoogleButton(authRef, googleButtonRef, setError, setToken);
+  }, [token]);
 
   return (
     <main className="app-shell dashboard-shell" style={layoutStyle}>
@@ -29,7 +32,7 @@ export function Dashboard() {
           <p style={subtitleStyle}>Build question plans, run live sessions, and keep the stream overlay readable on-screen.</p>
         </div>
         <div style={heroMetaStyle}>
-          {!token ? <div ref={googleButtonRef} /> : <p className="status-pill" style={signedInStyle}>Signed in and ready.</p>}
+          {!token ? <div key="signed-out" ref={googleButtonRef} /> : <div key="signed-in" style={signedInGroupStyle}><p className="status-pill" style={signedInStyle}>Signed in and ready.</p><button className="button-ghost" onClick={() => logout(setError, setRoomCode, setToken)} style={logoutButtonStyle} type="button">Log out</button></div>}
           <div style={featureListStyle}>
             <span style={featurePillStyle}>Plans</span>
             <span style={featurePillStyle}>Live control</span>
@@ -47,6 +50,17 @@ export function Dashboard() {
 function closeRecoveredRoom(setRoomCode: (value: string | null) => void) {
   clearInstructorRoomCode();
   setRoomCode(null);
+}
+
+function logout(
+  setError: (value: string | null) => void,
+  setRoomCode: (value: string | null) => void,
+  setToken: (value: string | null) => void
+) {
+  clearInstructorToken();
+  setError(null);
+  setRoomCode(null);
+  setToken(null);
 }
 
 function mountGoogleButton(
@@ -99,6 +113,8 @@ const heroCopyStyle = { display: 'grid', gap: '0.6rem' };
 const heroMetaStyle = { alignItems: 'flex-end', display: 'grid', gap: '0.9rem', justifyItems: 'end' as const };
 const heroStyle = { display: 'grid', gap: '1rem', padding: '1.7rem' };
 const layoutStyle = { color: '#f8fafc' };
+const logoutButtonStyle = { padding: '0.7rem 1rem' };
 const signedInStyle = { background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(96, 165, 250, 0.32)', color: '#bfdbfe', margin: 0 };
+const signedInGroupStyle = { alignItems: 'center', display: 'flex', flexWrap: 'wrap' as const, gap: '0.75rem', justifyContent: 'flex-end' };
 const subtitleStyle = { color: '#94a3b8', margin: 0, maxWidth: '52rem' };
 const titleStyle = { fontSize: 'clamp(2.2rem, 5vw, 3.6rem)', margin: 0 };

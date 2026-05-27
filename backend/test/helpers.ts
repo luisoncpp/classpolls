@@ -1,9 +1,8 @@
 import { afterEach, vi } from 'vitest';
 
 export const env = {
+  DB: {} as any,
   GOOGLE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
-  MONGODB_DATABASE: 'classpolls',
-  MONGODB_URI: 'mongodb://mongo.test/classpolls'
 };
 
 export function resetTime(value = 1_700_000_000_000) {

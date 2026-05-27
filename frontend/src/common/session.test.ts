@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getCountdownMs, isQuestionExpired, isQuestionOpen } from './session';
+import { getCountdownMs, getDisplayQuestion, isQuestionExpired, isQuestionOpen } from './session';
 
 describe('session helpers', () => {
   const question = {
@@ -26,5 +26,30 @@ describe('session helpers', () => {
     expect(getCountdownMs(question, now)).toBe(0);
     expect(isQuestionExpired(question, now)).toBe(true);
     expect(isQuestionOpen(question, now)).toBe(false);
+  });
+
+  it('does not expose queued questions before any launch', () => {
+    const session = {
+      createdAt: '2026-05-23T19:00:00.000Z',
+      questions: [{ choices: ['A', 'B'], isActive: false, questionId: 'q_1', text: 'Queued first question' }],
+      roomCode: 'ABCD',
+      status: 'active' as const
+    };
+
+    expect(getDisplayQuestion(session)).toBeNull();
+  });
+
+  it('keeps showing the most recent launched question when nothing is active', () => {
+    const session = {
+      createdAt: '2026-05-23T19:00:00.000Z',
+      questions: [
+        { choices: ['A', 'B'], isActive: false, questionId: 'q_1', startedAt: '2026-05-23T19:15:00.000Z', text: 'Launched question' },
+        { choices: ['C', 'D'], isActive: false, questionId: 'q_2', text: 'Queued next question' }
+      ],
+      roomCode: 'ABCD',
+      status: 'active' as const
+    };
+
+    expect(getDisplayQuestion(session)?.questionId).toBe('q_1');
   });
 });

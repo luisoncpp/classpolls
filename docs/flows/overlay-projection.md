@@ -28,7 +28,7 @@ Instructor (or anyone) opens `/overlay/:roomCode` in a browser or OBS browser so
 4. **State transitions**
     - On `status === "closed"`: polling stops, no error shown (session ended gracefully)
     - On `pollError.status === 404`: polling stops, "Room not found" shown
-    - When no active question exists: shows the last question (or "Waiting for the next question...")
+    - When no active question exists: shows the most recently launched question if one exists; queued questions with no `startedAt` stay hidden and the overlay shows "Waiting for the next question..."
     - When a timed question expires, the overlay schedules an extra immediate poll so the answer reveal is not delayed by the normal 3s interval
     - `inFlight` guard prevents overlapping polls
 

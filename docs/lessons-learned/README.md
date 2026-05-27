@@ -21,5 +21,6 @@ Avoid: "bug description + fix". Prefer: "what I learned that applies to future w
 
 | File | Topic | Date |
 |------|-------|------|
+| `d1-json-documents-need-version-guards.md` | Protect D1 JSON document rewrites with optimistic version checks | 2026-05-26 |
 | `local-mongodb-dev-latency.md` | MongoDB + Workers local dev latency and secret config management | 2026-05-24 |
 | `mongo-dotted-path-writes-need-validated-ids.md` | Validate identifiers before Mongo dotted-path writes | 2026-05-25 |

@@ -45,7 +45,7 @@ describe('POST /api/auth/google', () => {
     expect(response.status).toBe(200);
     expect(body.instructorToken).toMatch(/^st_/);
     expect(db.upsertInstructor).toHaveBeenCalledWith(
-      expect.objectContaining({ database: env.MONGODB_DATABASE, uri: env.MONGODB_URI }),
+      expect.objectContaining({ db: env.DB }),
       'google-1',
       expect.objectContaining({ instructorToken: expect.stringMatching(/^st_/) })
     );

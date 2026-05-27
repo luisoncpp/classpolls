@@ -27,6 +27,10 @@ export function getActiveQuestion(session: PublicSession): SessionQuestion | nul
   return session.questions.find((question) => question.isActive) ?? null;
 }
 
+export function getDisplayQuestion(session: PublicSession): SessionQuestion | null {
+  return getActiveQuestion(session) ?? getLatestStartedQuestion(session);
+}
+
 export function getCountdownMs(question: SessionQuestion, now: number): number | null {
   if (!question.startedAt || typeof question.timeLimit !== 'number') return null;
   return Math.max(0, new Date(question.startedAt).getTime() + question.timeLimit * 1000 - now);
@@ -44,4 +48,9 @@ export function isQuestionOpen(question: SessionQuestion, now: number): boolean 
 
 export function isPollError(update: PollError | PublicSession): update is PollError {
   return 'pollError' in update;
+}
+
+function getLatestStartedQuestion(session: PublicSession): SessionQuestion | null {
+  const startedQuestions = session.questions.filter((question) => Boolean(question.startedAt));
+  return startedQuestions[startedQuestions.length - 1] ?? null;
 }

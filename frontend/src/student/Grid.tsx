@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 
 import { getErrorMessage } from '../common/apiClient';
-import { PublicSession, getActiveQuestion, getCountdownMs, isQuestionExpired, isQuestionOpen } from '../common/session';
+import { PublicSession, getCountdownMs, getDisplayQuestion, isQuestionExpired, isQuestionOpen } from '../common/session';
 import { VoteDispatcher } from './Private/VoteDispatcher';
 
 type GridProps = {
@@ -14,23 +14,22 @@ export function Grid({ onVoteError, session, voteDispatcher }: GridProps) {
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => startClock(setNow), []);
-  const activeQuestion = getActiveQuestion(session);
-  const latestQuestion = activeQuestion ?? session.questions[session.questions.length - 1] ?? null;
-  if (!latestQuestion && session.status === 'closed') return <p>Session closed.</p>;
-  if (!latestQuestion) return <p>Waiting for the instructor...</p>;
+  const question = getDisplayQuestion(session);
+  if (!question && session.status === 'closed') return <p>Session closed.</p>;
+  if (!question) return <p>Waiting for the instructor...</p>;
 
-  const countdownMs = getCountdownMs(latestQuestion, now);
-  const displayedVote = voteDispatcher?.getDisplayedVote(latestQuestion.questionId, latestQuestion.myVote) ?? latestQuestion.myVote ?? null;
-  const isExpired = session.status === 'closed' || isQuestionExpired(latestQuestion, now) || latestQuestion.isActive === false;
+  const countdownMs = getCountdownMs(question, now);
+  const displayedVote = voteDispatcher?.getDisplayedVote(question.questionId, question.myVote) ?? question.myVote ?? null;
+  const isExpired = session.status === 'closed' || isQuestionExpired(question, now) || question.isActive === false;
   return (
     <section style={sectionStyle}>
       <div style={headerStyle}>
-        <h2 style={titleStyle}>{latestQuestion.text}</h2>
+        <h2 style={titleStyle}>{question.text}</h2>
         {countdownMs !== null && !isExpired ? <p style={countdownStyle}>{Math.ceil(countdownMs / 1000)}s</p> : null}
       </div>
       <p style={statusStyle}>{session.status === 'closed' ? 'Session closed' : isExpired ? 'Time is over' : displayedVote === null ? 'Choose one option' : 'Answer registered'}</p>
       <div style={gridStyle}>
-        {latestQuestion.choices.map((choice, index) => renderChoiceButton(latestQuestion, choice, index, displayedVote, isExpired, onVoteError, voteDispatcher, now))}
+        {question.choices.map((choice, index) => renderChoiceButton(question, choice, index, displayedVote, isExpired, onVoteError, voteDispatcher, now))}
       </div>
     </section>
   );

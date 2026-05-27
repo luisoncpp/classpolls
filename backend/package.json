@@ -10,8 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "jose": "^6.2.3",
-    "mongodb": "^7.2.0"
+    "jose": "^6.2.3"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.16.8",

@@ -24,7 +24,7 @@ To satisfy the strict cost constraints ($0 USD operating cost) and eliminate dep
 | :--- | :--- | :--- |
 | **Frontend Hosting** | **Cloudflare Pages** | Provides global CDN static distribution for both the instructor dashboard, student remote view, and OBS overlays. 100% free with unlimited bandwidth. |
 | **Backend Compute** | **Cloudflare Workers** | Serverless V8 isolates executing code on the network edge. Eliminates persistent server upkeep. Free tier allows 100,000 requests per day. |
-| **Database Storage** | **MongoDB Atlas (M0 Free Tier)** | Provides a flexible JSON document structure perfectly fitting schema evolution. Free tier offers 512 MB of storage, sufficient for thousands of text-only sessions. |
+| **Database Storage** | **Cloudflare D1** | Keeps the data close to the Worker, removes Atlas free-tier latency, and still supports storing question arrays as JSON where needed. |
 | **Communication Protocol** | **HTTP Client Polling (3s)** | Bypasses complex WebSocket state tracking on serverless infrastructures. Seamlessly bypasses strict educational/corporate network firewalls. Low query metrics fit free limits safely. |
 
 ---
@@ -71,9 +71,9 @@ The entire history, configurations, and current live voting state are combined i
 * **FR-1.1 Session Initialization:** The system must allow instructors to initiate an active room with a single click, instantly generating a unique, human-readable 4-character code (e.g., `NXKB`).
 * **FR-1.2 Safe 2-Click Launch Mechanism:** To prevent accidental misclicks, publishing any question must require a distinct two-step execution pattern:
   * *Click 1 (Load/Draft):* Select a pre-saved question template (e.g., Yes/No, A/B/C/D, 1-5 Confidence Thermometer) or open a custom blank form. The system populates a staging workspace allowing text editing.
-  * *Click 2 (Launch Live):* Click a "Launch Question" button to submit data updates to MongoDB, instantly declaring it active for connected clients.
+  * *Click 2 (Launch Live):* Click a "Launch Question" button to submit data updates to D1, instantly declaring it active for connected clients.
 * **FR-1.3 Verbal/Improvised Question Support:** The interface must allow launching template parameters without explicit body text, enabling instructors to dictate questions verbally over Discord/OBS while students interact purely with generic response keys.
-* **FR-1.4 On-Demand Statistical Refresh:** The instructor dashboard must supply an asynchronous refresh option to poll total counts. The data layer will leverage atomic increment logic (`$inc`) inside MongoDB to preserve transaction safety across concurrent voters.
+* **FR-1.4 On-Demand Statistical Refresh:** The instructor dashboard must supply an asynchronous refresh option to poll total counts. The data layer must preserve transaction safety across concurrent voters.
 * **FR-1.5 Session Closure & Exfiltration:** Upon hitting "End Class", the serverless script updates room indicators to `closed`. The dashboard generates an immediate on-client download structure enabling file export (CSV / JSON Report) before data memory clearing.
 
 ### 4.2 Student Requirements (Remote Interface)
@@ -95,4 +95,4 @@ The entire history, configurations, and current live voting state are combined i
 * **NFR-4.2 Open-Source Compliance:** Software architecture layout codebases will be published under a **GPLv3 Dual-Licensing Framework** (or restrictive non-commercial setup like *CC BY-NC*), preserving open-source academic flexibility while reserving rights on unapproved monetization.
 
 ### 5.3 System Stability & Garbage Collection
-* **NFR-5.1 Time-To-Live (TTL) Automatic Purges:** To protect database environments from stray active rooms, MongoDB will utilize a **TTL Index** set at 4 hours past the `createdAt` timestamp, ensuring automated housecleaning and space conservation without developer intervention.
+* **NFR-5.1 Session Cleanup:** To protect the database from stray active rooms, the backend should eventually add an explicit cleanup job or scheduled purge based on `createdAt`.

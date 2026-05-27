@@ -31,8 +31,9 @@ backend/src/
 ## 2. Cross-Cutting Conventions
 
 ### 2.1 CORS
-- All responses include `Access-Control-Allow-Origin: *`.
+- Responses echo `Access-Control-Allow-Origin` only when the request `Origin` is present in the `FRONTEND_ORIGINS` allowlist.
 - `OPTIONS` preflight returns `Allow-Methods: GET, POST, DELETE, OPTIONS` and `Allow-Headers: Content-Type, Authorization`.
+- CORS responses include `Vary: Origin`.
 - The CORS wrapper lives in `src/index.ts` and is applied to every non-OPTIONS response, including errors.
 
 ### 2.2 Error Envelope
@@ -52,7 +53,7 @@ The DB layer maps D1 timestamp strings back into `Date` objects before returning
 ### 2.4 Identifier Formats
 - `instructorToken`: `st_` + 32 hex chars from `crypto.getRandomValues(new Uint8Array(16))`
 - `studentId`: client-generated UUIDv4
-- `questionId`: `q_${Date.now()}`
+- `questionId`: `q_${crypto.randomUUID()}`
 - `roomCode`: see §2.5
 
 ### 2.5 `roomCode` Generation & Collisions
@@ -180,6 +181,7 @@ Tests mock the public `db/index.ts` boundary with `vi.mock('../src/db/index')` a
 - Verifies Google ID token.
 - Upserts the instructor by `googleId`.
 - Returns `{ instructorToken }`.
+- Requires the D1 binding; otherwise returns `500 DB_NOT_CONFIGURED`.
 
 ### 5.2 Plan Management Domain
 
@@ -211,18 +213,22 @@ Tests mock the public `db/index.ts` boundary with `vi.mock('../src/db/index')` a
 
 #### `POST /api/sessions/:roomCode/questions/custom`
 - Pushes a custom live-room question.
+- Returns `404 SESSION_NOT_FOUND` when the bearer token does not own an active room.
 
 #### `POST /api/sessions/:roomCode/questions/:questionId/activate`
 - Activates one question and deactivates others.
+- Returns `404 SESSION_NOT_FOUND` when no active instructor-owned room matches.
 
 #### `POST /api/sessions/:roomCode/questions/deactivate`
 - Deactivates the currently active question.
+- Returns `404 SESSION_NOT_FOUND` when no active instructor-owned room matches.
 
 #### `GET /api/sessions/:roomCode/stats`
 - Returns full instructor-facing stats including vote maps.
 
 #### `POST /api/sessions/:roomCode/close`
 - Sets `status = "closed"`.
+- Returns `404 SESSION_NOT_FOUND` when no active instructor-owned room matches.
 
 ### 5.4 Student Domain
 

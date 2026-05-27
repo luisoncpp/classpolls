@@ -86,4 +86,38 @@ describe('POST /api/auth/google', () => {
     });
     expect(db.upsertInstructor).not.toHaveBeenCalled();
   });
+
+  it('rejects auth when the database binding is missing', async () => {
+    vi.mocked(jose.jwtVerify).mockResolvedValue({
+      payload: { email: 'teach@example.com', name: 'Teacher', picture: 'https://example.com/p.png', sub: 'google-1' }
+    } as never);
+
+    const response = await run('/api/auth/google', {
+      body: JSON.stringify({ idToken: 'jwt' }),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST'
+    }, {
+      ...env,
+      DB: undefined
+    });
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: { code: 'DB_NOT_CONFIGURED', message: 'Database not configured' }
+    });
+    expect(db.upsertInstructor).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for malformed JSON', async () => {
+    const response = await run('/api/auth/google', {
+      body: '{',
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: { code: 'INVALID_JSON', message: 'Request body must be valid JSON' }
+    });
+  });
 });

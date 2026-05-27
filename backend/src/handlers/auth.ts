@@ -3,20 +3,9 @@ import { verifyGoogleToken } from '../auth/google';
 import * as db from '../db/index';
 import { HttpError, getDbContext, json, parseBody } from './_shared';
 
-async function fallbackInstructorToken(googleId: string): Promise<string> {
-  const bytes = new TextEncoder().encode(googleId);
-  const hash = await crypto.subtle.digest('SHA-256', bytes);
-  const hex = Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('');
-  return `st_${hex.slice(0, 32)}`;
-}
-
 function generateInstructorToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return `st_${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
-}
-
-function hasDatabaseConfig(env: Env): boolean {
-  return Boolean(env.DB);
 }
 
 export async function handleGoogleAuth(request: Request, env: Env): Promise<Response> {
@@ -31,10 +20,6 @@ export async function handleGoogleAuth(request: Request, env: Env): Promise<Resp
   } catch (e) {
     console.error('Google token verification failed:', e instanceof Error ? e.message : String(e));
     throw new HttpError(401, 'INVALID_GOOGLE_TOKEN', 'Google token verification failed');
-  }
-
-  if (!hasDatabaseConfig(env)) {
-    return json({ instructorToken: await fallbackInstructorToken(payload.sub) });
   }
 
   return json({ instructorToken: await upsertInstructor(getDbContext(env), payload) });

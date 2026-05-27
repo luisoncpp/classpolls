@@ -230,7 +230,7 @@ describe('sessions endpoints', () => {
 
   it('POST /api/sessions/:roomCode/questions/custom pushes a q_ question and can auto-activate', async () => {
     resetTime();
-    vi.mocked(db.addCustomQuestion).mockResolvedValue({ modifiedCount: 1 } as never);
+    vi.mocked(db.addCustomQuestion).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never);
 
     const response = await run('/api/sessions/ABCD/questions/custom', {
       body: JSON.stringify({ activate: true, choices: ['A', 'B'], text: 'Live?' }),
@@ -248,7 +248,7 @@ describe('sessions endpoints', () => {
 
   it('POST /api/sessions/:roomCode/questions/custom keeps timing and correct answer metadata', async () => {
     resetTime();
-    vi.mocked(db.addCustomQuestion).mockResolvedValue({ modifiedCount: 1 } as never);
+    vi.mocked(db.addCustomQuestion).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never);
 
     const response = await run('/api/sessions/ABCD/questions/custom', {
       body: JSON.stringify({
@@ -292,6 +292,20 @@ describe('sessions endpoints', () => {
     });
   });
 
+  it('POST /api/sessions/:roomCode/questions/:questionId/activate returns 404 when no session matches', async () => {
+    vi.mocked(db.activateQuestion).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never);
+
+    const response = await run('/api/sessions/ABCD/questions/q_1/activate', {
+      headers: { Authorization: 'Bearer st_owner' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({
+      error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' }
+    });
+  });
+
   it('POST /api/sessions/:roomCode/questions/deactivate only deactivates the active question', async () => {
     vi.mocked(db.deactivateQuestion).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never);
 
@@ -303,6 +317,20 @@ describe('sessions endpoints', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ success: true });
     expect(db.deactivateQuestion).toHaveBeenCalledWith(expect.any(Object), 'ABCD', 'st_owner');
+  });
+
+  it('POST /api/sessions/:roomCode/questions/deactivate returns 404 when no session matches', async () => {
+    vi.mocked(db.deactivateQuestion).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never);
+
+    const response = await run('/api/sessions/ABCD/questions/deactivate', {
+      headers: { Authorization: 'Bearer st_owner' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({
+      error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' }
+    });
   });
 
   it('POST /api/sessions/:roomCode/vote writes a vote only for an active, unexpired question', async () => {
@@ -397,5 +425,88 @@ describe('sessions endpoints', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ success: true });
     expect(db.closeSession).toHaveBeenCalledWith(expect.any(Object), 'ABCD', 'st_owner');
+  });
+
+  it('POST /api/sessions/:roomCode/close returns 404 when no session matches', async () => {
+    vi.mocked(db.closeSession).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never);
+
+    const response = await run('/api/sessions/ABCD/close', {
+      headers: { Authorization: 'Bearer st_owner' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({
+      error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' }
+    });
+  });
+
+  it('POST /api/sessions/:roomCode/questions/custom returns 404 when no session matches', async () => {
+    vi.mocked(db.addCustomQuestion).mockResolvedValue({ matchedCount: 0, modifiedCount: 0 } as never);
+
+    const response = await run('/api/sessions/ABCD/questions/custom', {
+      body: JSON.stringify({ choices: ['A', 'B'], text: 'Live?' }),
+      headers: { Authorization: 'Bearer st_owner', 'Content-Type': 'application/json' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({
+      error: { code: 'SESSION_NOT_FOUND', message: 'Session not found' }
+    });
+  });
+
+  it('POST /api/sessions/:roomCode/questions/custom uses random UUID question ids', async () => {
+    vi.mocked(db.addCustomQuestion).mockResolvedValue({ matchedCount: 1, modifiedCount: 1 } as never);
+
+    const response = await run('/api/sessions/ABCD/questions/custom', {
+      body: JSON.stringify({ choices: ['A', 'B'], text: 'Live?' }),
+      headers: { Authorization: 'Bearer st_owner', 'Content-Type': 'application/json' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ questionId: expect.stringMatching(/^q_[0-9a-f-]{36}$/) });
+    expect(db.addCustomQuestion).toHaveBeenCalledWith(expect.any(Object), 'ABCD', {
+      instructorToken: 'st_owner',
+      question: expect.objectContaining({ questionId: expect.stringMatching(/^q_[0-9a-f-]{36}$/) })
+    });
+  });
+
+  it('returns 400 for malformed JSON vote payloads', async () => {
+    const response = await run('/api/sessions/ABCD/vote', {
+      body: '{',
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST'
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: { code: 'INVALID_JSON', message: 'Request body must be valid JSON' }
+    });
+  });
+
+  it('reflects allowed CORS origin for trusted frontends only', async () => {
+    vi.mocked(db.getSession).mockResolvedValue({
+      document: {
+        createdAt: new Date('2026-05-23T19:00:00.000Z'),
+        questions: [],
+        roomCode: 'ABCD',
+        status: 'active'
+      }
+    } as never);
+
+    const allowed = await run('/api/sessions/ABCD', {
+      headers: { Origin: 'https://classpolls.pages.dev' },
+      method: 'GET'
+    });
+    const denied = await run('/api/sessions/ABCD', {
+      headers: { Origin: 'https://evil.example' },
+      method: 'GET'
+    });
+
+    expect(allowed.headers.get('Access-Control-Allow-Origin')).toBe('https://classpolls.pages.dev');
+    expect(allowed.headers.get('Vary')).toContain('Origin');
+    expect(denied.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 });

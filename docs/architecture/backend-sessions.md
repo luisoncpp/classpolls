@@ -35,6 +35,8 @@ This guarantees exactly one active question per room atomically.
 
 `addCustomQuestion` accepts an `activate` boolean. When `true`, it calls `deactivateQuestion` before pushing, then creates the new question with `isActive: true` and a `startedAt` timestamp.
 
+New question ids use `q_${crypto.randomUUID()}` to avoid timestamp collisions and predictable ids.
+
 ## Student vs Instructor Projections
 
 **Public** (`GET /api/sessions/:roomCode`):
@@ -47,6 +49,8 @@ This guarantees exactly one active question per room atomically.
 - Requires `Authorization: Bearer <token>` matching the session
 - Returns full document including complete `votes` maps per question
 - Cross-tenant access returns 404
+
+Instructor mutations (`custom`, `activate`, `deactivate`, `close`) also return `404 SESSION_NOT_FOUND` when the bearer token does not match an active room instead of silently reporting success.
 
 ## Vote Registration
 

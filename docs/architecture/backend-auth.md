@@ -6,7 +6,7 @@
 Cloudflare Workers do not support standard Node.js crypto and HTTP libraries in the exact same way a standard Node server does. Therefore, using the official `google-auth-library` is prone to bundle errors.
 
 ## Token Generation
-The `instructorToken` (`st_...`) is generated via `crypto.getRandomValues(new Uint8Array(16))`, producing a 32-hex-char suffix (`st_{32 hex}`). When the D1 binding is not configured, a deterministic fallback uses `SHA-256(googleId)` truncated to 32 hex chars, signed with `st_` prefix — this avoids storing state but still provides a consistent per-user token.
+The `instructorToken` (`st_...`) is generated via `crypto.getRandomValues(new Uint8Array(16))`, producing a 32-hex-char suffix (`st_{32 hex}`). The backend now requires the D1 binding for Google auth and refuses to mint instructor tokens without persistent storage.
 
 ## Implementation Details
 1. **The JWT Verifier (`src/auth/google.ts`)**:
@@ -21,6 +21,7 @@ The `instructorToken` (`st_...`) is generated via `crypto.getRandomValues(new Ui
    - The backend performs an `upsert` in the `instructors` collection.
    - The backend responds with our internal `instructorToken`.
    - All subsequent protected API calls use this internal token via the `Authorization: Bearer <token>` header, drastically reducing the latency of re-verifying the Google JWT on every request.
+   - If the D1 binding is missing, the handler returns `500 DB_NOT_CONFIGURED` instead of issuing a fallback token.
 
 ## Cross-Tenant Isolation
 The `instructorToken` is the sole ownership key. Plans and sessions are scoped by it in every query filter. A 404/403 is returned for cross-tenant access attempts.

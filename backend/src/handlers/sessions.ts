@@ -7,6 +7,7 @@ import {
   getDbContext,
   json,
   normalizeDates,
+  notFound,
   parseBody,
   readId,
   requireToken
@@ -49,17 +50,20 @@ async function addCustomQuestion(req: Request, ctx: db.DbContext, roomCode: stri
   const activate = Boolean(body.activate);
   if (activate) await db.deactivateQuestion(ctx, roomCode, token);
   const question = createQuestion(parseQuestionPayload(body), activate);
-  await db.addCustomQuestion(ctx, roomCode, { instructorToken: token, question });
+  const result = await db.addCustomQuestion(ctx, roomCode, { instructorToken: token, question });
+  if (!result.matchedCount) notFound('SESSION_NOT_FOUND', 'Session not found');
   return json({ questionId: question.questionId }, 201);
 }
 
 async function activateQuestion(req: Request, ctx: db.DbContext, roomCode: string, questionId: string) {
-  await db.activateQuestion(ctx, roomCode, { instructorToken: requireToken(req), questionId });
+  const result = await db.activateQuestion(ctx, roomCode, { instructorToken: requireToken(req), questionId });
+  if (!result.matchedCount) notFound('SESSION_NOT_FOUND', 'Session not found');
   return json({ success: true });
 }
 
 async function closeSession(req: Request, ctx: db.DbContext, roomCode: string) {
-  await db.closeSession(ctx, roomCode, requireToken(req));
+  const result = await db.closeSession(ctx, roomCode, requireToken(req));
+  if (!result.matchedCount) notFound('SESSION_NOT_FOUND', 'Session not found');
   return json({ success: true });
 }
 
@@ -78,7 +82,7 @@ function createQuestion(
     ...(typeof payload.timeLimit === 'number' ? { timeLimit: payload.timeLimit } : {}),
     choices: payload.choices,
     isActive: active,
-    questionId: questionId ?? `q_${Date.now()}`,
+    questionId: questionId ?? `q_${crypto.randomUUID()}`,
     text: payload.text,
     votes: {}
   };
@@ -101,7 +105,8 @@ async function createSession(req: Request, ctx: db.DbContext) {
 }
 
 async function deactivateQuestion(req: Request, ctx: db.DbContext, roomCode: string) {
-  await db.deactivateQuestion(ctx, roomCode, requireToken(req));
+  const result = await db.deactivateQuestion(ctx, roomCode, requireToken(req));
+  if (!result.matchedCount) notFound('SESSION_NOT_FOUND', 'Session not found');
   return json({ success: true });
 }
 

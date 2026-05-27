@@ -19,6 +19,10 @@ export function conflict(code: string, message: string): never {
   throw new HttpError(409, code, message);
 }
 
+export function notFound(code: string, message: string): never {
+  throw new HttpError(404, code, message);
+}
+
 export function getDbContext(env: Env): DbContext {
   if (!env.DB) throw new HttpError(500, 'DB_NOT_CONFIGURED', 'Database not configured');
   return {
@@ -44,7 +48,9 @@ export function normalizeDates(value: unknown): unknown {
 }
 
 export function parseBody<T>(request: Request): Promise<T> {
-  return request.json().then((body) => body as T).catch(() => ({} as T));
+  return request.json().then((body) => body as T).catch(() => {
+    throw new HttpError(400, 'INVALID_JSON', 'Request body must be valid JSON');
+  });
 }
 
 export function readId(value: unknown): string {

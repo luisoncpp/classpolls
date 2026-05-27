@@ -47,8 +47,15 @@ export function getErrorMessage(error: unknown): string {
   return 'Unexpected request error';
 }
 
+function apiUrl(path: string): string {
+  if (import.meta.env.VITE_API_ORIGIN && path.startsWith('/api/')) {
+    return `${import.meta.env.VITE_API_ORIGIN}${path}`;
+  }
+  return path;
+}
+
 export async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const response = await fetch(path, createRequestInit(options));
+  const response = await fetch(apiUrl(path), createRequestInit(options));
   const body = await readResponseBody(response);
   if (response.ok) return body as T;
   if (response.status === 401 && options.token) clearInstructorToken();

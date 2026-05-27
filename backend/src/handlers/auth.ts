@@ -28,7 +28,8 @@ export async function handleGoogleAuth(request: Request, env: Env): Promise<Resp
   let payload: any;
   try {
     payload = await verifyGoogleToken(body.idToken, env.GOOGLE_CLIENT_ID);
-  } catch {
+  } catch (e) {
+    console.error('Google token verification failed:', e instanceof Error ? e.message : String(e));
     throw new HttpError(401, 'INVALID_GOOGLE_TOKEN', 'Google token verification failed');
   }
 

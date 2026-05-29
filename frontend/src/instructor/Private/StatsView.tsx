@@ -1,3 +1,5 @@
+import { useI18n } from '../../common/i18n';
+
 type StatsQuestion = {
   choices: string[];
   correctChoiceIndex?: number;
@@ -11,25 +13,26 @@ type StatsViewProps = { question: StatsQuestion | null };
 const SLICE_COLORS = ['#60a5fa', '#f59e0b', '#f472b6', '#34d399', '#a78bfa', '#fb7185'];
 
 export function StatsView({ question }: StatsViewProps) {
-  if (!question) return <p style={emptyStyle}>Activate a question to view stats.</p>;
+  const { t } = useI18n();
+  if (!question) return <p style={emptyStyle}>{t('stats.activateQuestion')}</p>;
   const counts = question.choices.map((_, index) => countVotes(question.votes, index));
   const leadingChoiceIndex = counts.indexOf(Math.max(...counts, 0));
   const totalVotes = counts.reduce((sum, count) => sum + count, 0);
   return (
     <section style={layoutStyle}>
       <header style={headerStyle}>
-        <p style={eyebrowStyle}>Live results</p>
+        <p style={eyebrowStyle}>{t('stats.liveResults')}</p>
         <h3 style={titleStyle}>{question.text}</h3>
-        <span style={statusBadgeStyle}>{question.isActive ? 'Receiving answers' : 'Awaiting next question'}</span>
+        <span style={statusBadgeStyle}>{question.isActive ? t('stats.receivingAnswers') : t('stats.awaitingNextQuestion')}</span>
       </header>
       <div style={summaryGridStyle}>
-        <article style={summaryCardStyle}><span style={metaStyle}>Responses</span><strong style={summaryValueStyle}>{totalVotes}</strong></article>
-        <article style={summaryCardStyle}><span style={metaStyle}>Leading choice</span><strong style={summaryValueStyle}>{totalVotes ? question.choices[leadingChoiceIndex] : 'No answers yet'}</strong></article>
-        <article style={summaryCardStyle}><span style={metaStyle}>Marked answer</span><strong style={summaryValueStyle}>{typeof question.correctChoiceIndex === 'number' ? question.choices[question.correctChoiceIndex] : 'Not set'}</strong></article>
+        <article style={summaryCardStyle}><span style={metaStyle}>{t('stats.responses')}</span><strong style={summaryValueStyle}>{totalVotes}</strong></article>
+        <article style={summaryCardStyle}><span style={metaStyle}>{t('stats.leadingChoice')}</span><strong style={summaryValueStyle}>{totalVotes ? question.choices[leadingChoiceIndex] : t('stats.noAnswersYet')}</strong></article>
+        <article style={summaryCardStyle}><span style={metaStyle}>{t('stats.markedAnswer')}</span><strong style={summaryValueStyle}>{typeof question.correctChoiceIndex === 'number' ? question.choices[question.correctChoiceIndex] : t('stats.notSet')}</strong></article>
       </div>
       <div style={chartLayoutStyle}>
-        <div style={chartCardStyle}><div style={pieWrapStyle}><div style={pieStyle(counts, totalVotes)} /><div style={pieCenterStyle}><strong>{totalVotes}</strong><span>answers</span></div></div><p style={chartNoteStyle}>Results update as the instructor dashboard refreshes live session stats.</p></div>
-        <div style={legendStyle}>{question.choices.map((choice, index) => renderLegendItem(choice, counts[index] ?? 0, index, question.correctChoiceIndex, totalVotes))}</div>
+        <div style={chartCardStyle}><div style={pieWrapStyle}><div style={pieStyle(counts, totalVotes)} /><div style={pieCenterStyle}><strong>{totalVotes}</strong><span>{t('stats.answersLabel')}</span></div></div><p style={chartNoteStyle}>{t('stats.updateNote')}</p></div>
+        <div style={legendStyle}>{question.choices.map((choice, index) => renderLegendItem(choice, counts[index] ?? 0, index, question.correctChoiceIndex, totalVotes, t))}</div>
       </div>
     </section>
   );
@@ -58,7 +61,8 @@ function renderLegendItem(
   count: number,
   index: number,
   correctChoiceIndex: number | undefined,
-  totalVotes: number
+  totalVotes: number,
+  t: (key: string, values?: Record<string, string | number>) => string
 ) {
   const percent = totalVotes === 0 ? 0 : Math.round((count / totalVotes) * 100);
   const isCorrect = correctChoiceIndex === index;
@@ -68,12 +72,12 @@ function renderLegendItem(
         <div style={legendLabelStyle}>
         <span style={{ ...swatchStyle, background: SLICE_COLORS[index % SLICE_COLORS.length] }} />
         <span>{choice}</span>
-        {isCorrect ? <span style={correctBadgeStyle}>Correct</span> : null}
+        {isCorrect ? <span style={correctBadgeStyle}>{t('stats.correct')}</span> : null}
         </div>
         <strong>{count}</strong>
       </div>
       <div style={progressTrackStyle}><div style={{ ...progressFillStyle, background: SLICE_COLORS[index % SLICE_COLORS.length], width: `${percent}%` }} /></div>
-      <span style={metaStyle}>{percent}% of answers</span>
+      <span style={metaStyle}>{t('stats.percentOfTotal', { percent })}</span>
     </div>
   );
 }

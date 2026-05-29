@@ -1,3 +1,4 @@
+import { useI18n } from '../../common/i18n';
 import { QUESTION_TEMPLATES } from './questionTemplates';
 import { QuestionDraft, getDraftChoices } from './questionDraft';
 
@@ -14,20 +15,21 @@ type QuestionEditorProps = {
 };
 
 export function QuestionEditor(props: QuestionEditorProps) {
+  const { t } = useI18n();
   const choices = getDraftChoices(props.draft);
   return (
     <form onSubmit={props.onSubmit} style={{ ...formStyle, ...(props.disabled ? disabledFormStyle : null) }}>
       <header style={headerStyle}>
         <div>
-          <p style={eyebrowStyle}>Question builder</p>
+          <p style={eyebrowStyle}>{t('editor.questionBuilder')}</p>
           <h3 style={titleStyle}>{props.title}</h3>
         </div>
-        <span style={countBadgeStyle}>{choices.length} choices ready</span>
+        <span style={countBadgeStyle}>{t('editor.choiceCount', { count: choices.length })}</span>
       </header>
       <section style={sectionStyle}>
         <div style={sectionHeaderStyle}>
-          <strong>1. Pick a starting point</strong>
-          <span style={mutedStyle}>Choose a template or keep editing manually.</span>
+          <strong>{t('editor.pickStartingPoint')}</strong>
+          <span style={mutedStyle}>{t('editor.templateHelp')}</span>
         </div>
         <div style={templateGridStyle}>
           {QUESTION_TEMPLATES.map((template) => (
@@ -39,28 +41,28 @@ export function QuestionEditor(props: QuestionEditorProps) {
               style={templateButtonStyle}
               type="button"
             >
-              <strong>{template.label}</strong>
-              <span style={mutedStyle}>{template.description}</span>
+              <strong>{t(`templates.${template.id}Label`)}</strong>
+              <span style={mutedStyle}>{t(`templates.${template.id}Description`)}</span>
             </button>
           ))}
         </div>
       </section>
       <section style={sectionStyle}>
         <div style={sectionHeaderStyle}>
-          <strong>2. Write the prompt</strong>
-          <span style={mutedStyle}>Keep the question short enough to read quickly on phones and overlays.</span>
+          <strong>{t('editor.writePrompt')}</strong>
+          <span style={mutedStyle}>{t('editor.promptHelp')}</span>
         </div>
         <input
           disabled={props.disabled}
           onInput={(event) => props.onChange({ ...props.draft, text: (event.currentTarget as HTMLInputElement).value })}
-          placeholder="Question text"
+          placeholder={t('editor.questionText')}
           style={inputStyle}
           value={props.draft.text}
         />
         <textarea
           disabled={props.disabled}
           onInput={(event) => props.onChange({ ...props.draft, choicesText: (event.currentTarget as HTMLTextAreaElement).value })}
-          placeholder="One choice per line"
+          placeholder={t('editor.oneChoicePerLine')}
           rows={5}
           style={textAreaStyle}
           value={props.draft.choicesText}
@@ -68,12 +70,12 @@ export function QuestionEditor(props: QuestionEditorProps) {
       </section>
       <section style={sectionStyle}>
         <div style={sectionHeaderStyle}>
-          <strong>3. Configure the answer</strong>
-          <span style={mutedStyle}>Set timing and optionally mark the correct answer.</span>
+          <strong>{t('editor.configureAnswer')}</strong>
+          <span style={mutedStyle}>{t('editor.setTimingHelp')}</span>
         </div>
         <div style={metaGridStyle}>
           <label style={labelStyle}>
-            Time limit (seconds)
+            {t('editor.timeLimitSeconds')}
             <input
               disabled={props.disabled}
               inputMode="numeric"
@@ -84,22 +86,22 @@ export function QuestionEditor(props: QuestionEditorProps) {
             />
           </label>
           <label style={labelStyle}>
-            Correct answer
+            {t('editor.correctAnswer')}
             <select
               disabled={props.disabled}
               onInput={(event) => props.onChange({ ...props.draft, correctChoiceIndex: (event.currentTarget as HTMLSelectElement).value })}
               style={inputStyle}
               value={props.draft.correctChoiceIndex}
             >
-              <option value="">No marked answer</option>
+              <option value="">{t('editor.noMarkedAnswer')}</option>
               {choices.map((choice, index) => <option key={`${choice}-${index}`} value={String(index)}>{choice}</option>)}
             </select>
           </label>
         </div>
-        <p style={hintStyle}>The correct answer selector updates automatically from the listed choices.</p>
+        <p style={hintStyle}>{t('editor.hint')}</p>
       </section>
       {props.error ? <p style={errorStyle}>{props.error}</p> : null}
-      <button className={props.pending ? 'button-soft' : 'button-primary'} disabled={props.pending} style={props.pending ? pendingButtonStyle : primaryButtonStyle} type="submit">{props.pending ? 'Working...' : props.actionLabel}</button>
+      <button className={props.pending ? 'button-soft' : 'button-primary'} disabled={props.pending} style={props.pending ? pendingButtonStyle : primaryButtonStyle} type="submit">{props.pending ? t('editor.working') : props.actionLabel}</button>
     </form>
   );
 }

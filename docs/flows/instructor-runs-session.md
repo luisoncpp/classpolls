@@ -9,15 +9,17 @@ Instructor clicks "Open classroom" on a plan from the Dashboard.
 ## Sequence
 
 1. **Login** (if not already)
+   - Shared app shell loads the persisted language (`cp.language`) or browser locale before rendering the dashboard
    - `/instructor` → `GoogleAuth.mountButton()` renders GIS button
    - Sign-in → `POST /api/auth/google` → backend verifies JWT → returns `instructorToken`
    - Token stored in `localStorage` (`cp.instructorToken`)
 
 2. **Plan management**
-    - `GET /api/plans` → `PlanManager` renders plan list
-    - "Create plan" → `POST /api/plans` with `{ title }` → returns `planId`, list refreshes
-   - "Edit questions" → `GET /api/plans/:planId` loads the full plan editor
-   - Question templates prefill common choice sets (Yes/No, A/B/C/D, Confidence 1-5, Custom)
+     - `GET /api/plans` → `PlanManager` renders plan list
+     - Instructor can switch UI language from the shared selector without leaving the page; copied UI text updates immediately
+     - "Create plan" → `POST /api/plans` with `{ title }` → returns `planId`, list refreshes
+    - "Edit questions" → `GET /api/plans/:planId` loads the full plan editor
+    - Question templates prefill common choice sets in the active UI language (Yes/No or Si/No, A/B/C/D, Confidence 1-5, Custom)
    - "Add question" → `POST /api/plans/:planId/questions` with `{ text, choices, timeLimit?, correctChoiceIndex? }`
    - "Remove" → `DELETE /api/plans/:planId/questions/:questionId`, detail refreshes
     - "Delete" → `DELETE /api/plans/:planId`, list refreshes

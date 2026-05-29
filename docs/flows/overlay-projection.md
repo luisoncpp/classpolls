@@ -9,9 +9,10 @@ Instructor (or anyone) opens `/overlay/:roomCode` in a browser or OBS browser so
 ## Sequence
 
 1. **Room resolution**
-   - Component mounts with `roomCode` from URL path
-   - `useEffect` → `startOverlayPolling()` creates a `SessionPollingController` (no `studentId` — overlay is projection-only)
-   - Polling starts: `GET /api/sessions/${roomCode}` every 3s
+    - Component mounts with `roomCode` from URL path
+    - `I18nProvider` resolves UI language from `cp.language` in `localStorage` or from browser locale before rendering overlay copy
+    - `useEffect` → `startOverlayPolling()` creates a `SessionPollingController` (no `studentId` — overlay is projection-only)
+    - Polling starts: `GET /api/sessions/${roomCode}` every 3s
 
 2. **Countdown interpolation**
    - A separate `useEffect` starts a 1s `setInterval` updating `now = Date.now()`

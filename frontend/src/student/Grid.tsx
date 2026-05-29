@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 
 import { getErrorMessage } from '../common/apiClient';
+import { useI18n } from '../common/i18n';
 import { PublicSession, getCountdownMs, getDisplayQuestion, isQuestionExpired, isQuestionOpen } from '../common/session';
 import { VoteDispatcher } from './Private/VoteDispatcher';
 
@@ -11,12 +12,13 @@ type GridProps = {
 };
 
 export function Grid({ onVoteError, session, voteDispatcher }: GridProps) {
+  const { t } = useI18n();
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => startClock(setNow), []);
   const question = getDisplayQuestion(session);
-  if (!question && session.status === 'closed') return <p>Session closed.</p>;
-  if (!question) return <p>Waiting for the instructor...</p>;
+  if (!question && session.status === 'closed') return <p>{t('student.sessionClosed')}</p>;
+  if (!question) return <p>{t('student.waitingForInstructor')}</p>;
 
   const countdownMs = getCountdownMs(question, now);
   const displayedVote = voteDispatcher?.getDisplayedVote(question.questionId, question.myVote) ?? question.myVote ?? null;
@@ -27,7 +29,7 @@ export function Grid({ onVoteError, session, voteDispatcher }: GridProps) {
         <h2 style={titleStyle}>{question.text}</h2>
         {countdownMs !== null && !isExpired ? <p style={countdownStyle}>{Math.ceil(countdownMs / 1000)}s</p> : null}
       </div>
-      <p style={statusStyle}>{session.status === 'closed' ? 'Session closed' : isExpired ? 'Time is over' : displayedVote === null ? 'Choose one option' : 'Answer registered'}</p>
+      <p style={statusStyle}>{session.status === 'closed' ? t('student.sessionClosed') : isExpired ? t('student.timeOver') : displayedVote === null ? t('student.chooseOneOption') : t('student.answerRegistered')}</p>
       <div style={gridStyle}>
         {question.choices.map((choice, index) => renderChoiceButton(question, choice, index, displayedVote, isExpired, onVoteError, voteDispatcher, now))}
       </div>

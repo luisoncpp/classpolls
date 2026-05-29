@@ -4,11 +4,17 @@ import { createDraftFromTemplate, parseDraft } from './questionDraft';
 
 describe('question draft helpers', () => {
   it('loads preset choices from a template', () => {
-    const draft = createDraftFromTemplate('abcd');
+    const draft = createDraftFromTemplate('abcd', 'en');
 
     expect(draft.choicesText).toBe('A\nB\nC\nD');
     expect(draft.correctChoiceIndex).toBe('');
     expect(draft.timeLimit).toBe('30');
+  });
+
+  it('localizes template defaults for spanish', () => {
+    const draft = createDraftFromTemplate('yesno', 'es');
+
+    expect(draft.choicesText).toBe('Si\nNo');
   });
 
   it('parses time limit and correct answer into a payload', () => {
@@ -37,6 +43,6 @@ describe('question draft helpers', () => {
       timeLimit: '0'
     });
 
-    expect(payload).toEqual({ error: 'Use a time limit greater than 0 seconds' });
+    expect(payload).toEqual({ error: 'questionDraft.positiveTimeLimit' });
   });
 });

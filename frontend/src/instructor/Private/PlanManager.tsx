@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
 
 import { getErrorMessage, requestJson } from '../../common/apiClient';
+import { useI18n } from '../../common/i18n';
 import { PlanQuestionList } from './PlanQuestionList';
 import { QuestionEditor } from './QuestionEditor';
-import { DEFAULT_DRAFT, QuestionDraft, createDraftFromTemplate, parseDraft } from './questionDraft';
+import { QuestionDraft, createDraftFromTemplate, getDefaultDraft, parseDraft } from './questionDraft';
 import { Plan, PlanDetail } from './planTypes';
 
 type PlanManagerProps = {
@@ -12,7 +13,8 @@ type PlanManagerProps = {
 };
 
 export function PlanManager({ onOpenClassroom, token }: PlanManagerProps) {
-  const [draft, setDraft] = useState<QuestionDraft>(DEFAULT_DRAFT);
+  const { language, t } = useI18n();
+  const [draft, setDraft] = useState<QuestionDraft>(() => getDefaultDraft(language));
   const [editorError, setEditorError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
@@ -36,40 +38,40 @@ export function PlanManager({ onOpenClassroom, token }: PlanManagerProps) {
     <section style={sectionStyle}>
       <div style={sectionHeaderStyle}>
         <div style={sectionHeadingStyle}>
-          <p style={eyebrowStyle}>Instructor workspace</p>
-          <h2 style={titleStyle}>Plans</h2>
-          <p style={descriptionStyle}>Build reusable question sets, then open a room when you are ready.</p>
+          <p style={eyebrowStyle}>{t('plans.instructorWorkspace')}</p>
+          <h2 style={titleStyle}>{t('plans.plans')}</h2>
+          <p style={descriptionStyle}>{t('plans.description')}</p>
         </div>
-        <span className="status-pill" style={countBadgeStyle}>{plans.length} plans</span>
+        <span className="status-pill" style={countBadgeStyle}>{t('plans.planCount', { count: plans.length })}</span>
       </div>
-      <form className="responsive-form" onSubmit={(event) => void createPlan(event, title, token, setError, setPendingAction, setPlans, setTitle)} style={createFormStyle}>
-        <input onInput={(event) => setTitle((event.currentTarget as HTMLInputElement).value)} placeholder="New plan title" style={inputStyle} value={title} />
-        <button className={pendingAction === 'create-plan' ? 'button-soft' : 'button-primary'} disabled={pendingAction === 'create-plan'} style={pendingAction === 'create-plan' ? pressedPrimaryButtonStyle : primaryButtonStyle} type="submit">{pendingAction === 'create-plan' ? 'Creating...' : 'Create plan'}</button>
+      <form className="responsive-form" onSubmit={(event) => void createPlan(event, title, token, setError, setPendingAction, setPlans, setTitle, t('plans.planTitleRequired'))} style={createFormStyle}>
+        <input onInput={(event) => setTitle((event.currentTarget as HTMLInputElement).value)} placeholder={t('plans.newPlanTitle')} style={inputStyle} value={title} />
+        <button className={pendingAction === 'create-plan' ? 'button-soft' : 'button-primary'} disabled={pendingAction === 'create-plan'} style={pendingAction === 'create-plan' ? pressedPrimaryButtonStyle : primaryButtonStyle} type="submit">{pendingAction === 'create-plan' ? t('plans.creatingPlan') : t('plans.createPlan')}</button>
       </form>
       {error ? <p style={errorStyle}>{error}</p> : null}
-      {isLoadingPlans ? <p className="loading-indicator" style={loadingStyle}>Loading plans...</p> : null}
-      {!isLoadingPlans && plans.length > 0 ? <div style={listStyle}>{plans.map((plan) => renderPlanCard(plan, expandedPlanId, onOpenClassroom, pendingAction, setError, setExpandedPlanId, setPendingAction, setPlans, token))}</div> : null}
-      {!isLoadingPlans && plans.length === 0 ? <p style={emptyStateStyle}>No plans yet. Create one above, then add questions and open the classroom from the same workspace.</p> : null}
+      {isLoadingPlans ? <p className="loading-indicator" style={loadingStyle}>{t('plans.loadingPlans')}</p> : null}
+      {!isLoadingPlans && plans.length > 0 ? <div style={listStyle}>{plans.map((plan) => renderPlanCard(plan, expandedPlanId, onOpenClassroom, pendingAction, setError, setExpandedPlanId, setPendingAction, setPlans, token, t))}</div> : null}
+      {!isLoadingPlans && plans.length === 0 ? <p style={emptyStateStyle}>{t('plans.noPlans')}</p> : null}
       {expandedPlanId ? (
         <section className="surface-panel" style={editorPanelStyle}>
           <header style={editorHeaderStyle}>
             <div>
-              <p style={eyebrowStyle}>Editing plan</p>
-              <h3 style={titleStyle}>{selectedPlan?.title ?? 'Loading plan editor...'}</h3>
+              <p style={eyebrowStyle}>{t('plans.editingPlan')}</p>
+              <h3 style={titleStyle}>{selectedPlan?.title ?? t('plans.loadingPlanEditor')}</h3>
             </div>
-            <span className="status-pill" style={countBadgeStyle}>{selectedPlan?.questions?.length ?? 0} questions</span>
+            <span className="status-pill" style={countBadgeStyle}>{t('plans.planQuestionsCount', { count: selectedPlan?.questions?.length ?? 0 })}</span>
           </header>
-          {isLoadingPlanDetail ? <p className="loading-indicator" style={loadingStyle}>Loading plan editor...</p> : null}
+          {isLoadingPlanDetail ? <p className="loading-indicator" style={loadingStyle}>{t('plans.loadingPlanEditor')}</p> : null}
           <QuestionEditor
-            actionLabel="Add question"
+            actionLabel={t('plans.addQuestion')}
             disabled={isLoadingPlanDetail}
             draft={draft}
             error={editorError}
             onChange={setDraft}
-            onSubmit={(event) => void addQuestion(event, draft, expandedPlanId, setDraft, setEditorError, setError, setPendingAction, setSelectedPlan, token)}
-            onTemplateChange={(templateId) => setDraft(createDraftFromTemplate(templateId))}
+            onSubmit={(event) => void addQuestion(event, draft, expandedPlanId, language, setDraft, setEditorError, setError, setPendingAction, setSelectedPlan, token, t)}
+            onTemplateChange={(templateId) => setDraft(createDraftFromTemplate(templateId, language))}
             pending={isLoadingPlanDetail || pendingAction === 'add-question'}
-            title="Question templates"
+            title={t('plans.questionTemplates')}
           />
           <PlanQuestionList loading={isLoadingPlanDetail} pendingAction={pendingAction} planId={expandedPlanId} questions={selectedPlan?.questions ?? []} setError={setError} setPendingAction={setPendingAction} setSelectedPlan={setSelectedPlan} token={token} />
         </section>
@@ -82,20 +84,22 @@ async function addQuestion(
   event: Event,
   draft: QuestionDraft,
   planId: string,
+  language: 'en' | 'es',
   setDraft: (value: QuestionDraft) => void,
   setEditorError: (value: string | null) => void,
   setError: (value: string | null) => void,
   setPendingAction: (value: string | null) => void,
   setSelectedPlan: (value: PlanDetail | null) => void,
-  token: string
+  token: string,
+  t: (key: string, values?: Record<string, string | number>) => string
 ) {
   event.preventDefault();
   const parsed = parseDraft(draft);
-  if ('error' in parsed) return setEditorError(parsed.error);
+  if ('error' in parsed) return setEditorError(t(parsed.error));
   try {
     setPendingAction('add-question');
     await requestJson(`/api/plans/${planId}/questions`, { body: parsed, method: 'POST', token });
-    setDraft(DEFAULT_DRAFT);
+    setDraft(getDefaultDraft(language));
     setEditorError(null);
     setError(null);
     await loadPlanDetail(planId, token, setError, () => undefined, setSelectedPlan);
@@ -113,10 +117,11 @@ async function createPlan(
   setError: (value: string | null) => void,
   setPendingAction: (value: string | null) => void,
   setPlans: (value: Plan[]) => void,
-  setTitle: (value: string) => void
+  setTitle: (value: string) => void,
+  titleRequiredMessage: string
 ) {
   event.preventDefault();
-  if (!title.trim()) return setError('Plan title is required');
+  if (!title.trim()) return setError(titleRequiredMessage);
   try {
     setPendingAction('create-plan');
     setError(null);
@@ -178,7 +183,8 @@ function renderPlanCard(
   setExpandedPlanId: (value: string | null) => void,
   setPendingAction: (value: string | null) => void,
   setPlans: (value: Plan[]) => void,
-  token: string
+  token: string,
+  t: (key: string, values?: Record<string, string | number>) => string
 ) {
   const isExpanded = expandedPlanId === plan.id;
   const isOpening = pendingAction === `open-${plan.id}`;
@@ -187,12 +193,12 @@ function renderPlanCard(
     <article className="interactive-card split-card" key={plan.id} style={planCardStyle}>
       <div>
         <strong style={planTitleStyle}>{plan.title}</strong>
-        <p style={descriptionStyle}>Create reusable prompts, then launch this plan into a live room.</p>
+        <p style={descriptionStyle}>{t('plans.planDescription')}</p>
       </div>
       <div className="action-row compact-actions" style={actionsStyle}>
-        <button className="button-secondary" onClick={() => setExpandedPlanId(isExpanded ? null : plan.id)} style={secondaryButtonStyle} type="button">{isExpanded ? 'Hide editor' : 'Edit questions'}</button>
-        <button className={isOpening ? 'button-soft' : 'button-primary'} disabled={isOpening} onClick={() => void openPlan(plan.id, onOpenClassroom, setPendingAction)} style={isOpening ? pressedPrimaryButtonStyle : primaryButtonStyle} type="button">{isOpening ? 'Opening...' : 'Open classroom'}</button>
-        <button className={isDeleting ? 'button-soft' : 'button-ghost'} disabled={isDeleting} onClick={() => void removePlan(plan.id, token, setError, setPendingAction, setPlans)} style={isDeleting ? pressedGhostButtonStyle : ghostButtonStyle} type="button">{isDeleting ? 'Deleting...' : 'Delete'}</button>
+        <button className="button-secondary" onClick={() => setExpandedPlanId(isExpanded ? null : plan.id)} style={secondaryButtonStyle} type="button">{isExpanded ? t('plans.hideEditor') : t('plans.editQuestions')}</button>
+        <button className={isOpening ? 'button-soft' : 'button-primary'} disabled={isOpening} onClick={() => void openPlan(plan.id, onOpenClassroom, setPendingAction)} style={isOpening ? pressedPrimaryButtonStyle : primaryButtonStyle} type="button">{isOpening ? t('plans.openingClassroom') : t('plans.openClassroom')}</button>
+        <button className={isDeleting ? 'button-soft' : 'button-ghost'} disabled={isDeleting} onClick={() => void removePlan(plan.id, token, setError, setPendingAction, setPlans)} style={isDeleting ? pressedGhostButtonStyle : ghostButtonStyle} type="button">{isDeleting ? t('plans.deleting') : t('plans.delete')}</button>
       </div>
     </article>
   );

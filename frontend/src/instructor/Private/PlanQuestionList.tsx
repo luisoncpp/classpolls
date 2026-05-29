@@ -1,4 +1,5 @@
 import { getErrorMessage, requestJson } from '../../common/apiClient';
+import { useI18n } from '../../common/i18n';
 import { PlanDetail, PlanQuestion } from './planTypes';
 
 type PlanQuestionListProps = {
@@ -13,9 +14,10 @@ type PlanQuestionListProps = {
 };
 
 export function PlanQuestionList(props: PlanQuestionListProps) {
-  if (props.loading) return <p className="loading-indicator" style={loadingStyle}>Loading questions...</p>;
-  if (props.questions.length === 0) return <p style={emptyStateStyle}>This plan has no questions yet. Pick a template above to start building the sequence.</p>;
-  return <div style={questionListStyle}>{props.questions.map((question) => renderQuestion(question, props.pendingAction, props.planId, props.setError, props.setPendingAction, props.setSelectedPlan, props.token))}</div>;
+  const { t } = useI18n();
+  if (props.loading) return <p className="loading-indicator" style={loadingStyle}>{t('plans.loadingPlanEditor')}</p>;
+  if (props.questions.length === 0) return <p style={emptyStateStyle}>{t('plans.noPlanQuestions')}</p>;
+  return <div style={questionListStyle}>{props.questions.map((question) => renderQuestion(question, props.pendingAction, props.planId, props.setError, props.setPendingAction, props.setSelectedPlan, props.token, t))}</div>;
 }
 
 async function loadPlanDetail(
@@ -51,10 +53,10 @@ async function removeQuestion(
   }
 }
 
-function renderMeta(question: PlanQuestion) {
-  const parts = [`${question.choices.length} choices`];
-  if (typeof question.timeLimit === 'number') parts.push(`${question.timeLimit}s`);
-  if (typeof question.correctChoiceIndex === 'number') parts.push('answer marked');
+function renderMeta(question: PlanQuestion, t: (key: string, values?: Record<string, string | number>) => string) {
+  const parts = [t('classroom.questionCount', { count: question.choices.length })];
+  if (typeof question.timeLimit === 'number') parts.push(t('classroom.timer', { seconds: question.timeLimit }));
+  if (typeof question.correctChoiceIndex === 'number') parts.push(t('stats.markedAnswer'));
   return parts.join(' • ');
 }
 
@@ -65,7 +67,8 @@ function renderQuestion(
   setError: (value: string | null) => void,
   setPendingAction: (value: string | null) => void,
   setSelectedPlan: (value: PlanDetail | null) => void,
-  token: string
+  token: string,
+  t: (key: string, values?: Record<string, string | number>) => string
 ) {
   const isPending = pendingAction === `remove-${question.questionId}`;
   return (
@@ -73,9 +76,9 @@ function renderQuestion(
       <div style={questionBodyStyle}>
         <strong>{question.text}</strong>
         <p style={descriptionStyle}>{question.choices.join(' / ')}</p>
-        <p style={metaStyle}>{renderMeta(question)}</p>
+        <p style={metaStyle}>{renderMeta(question, t)}</p>
       </div>
-      <button className={isPending ? 'button-soft' : 'button-ghost'} disabled={isPending} onClick={() => void removeQuestion(planId, question.questionId, setError, setPendingAction, setSelectedPlan, token)} style={isPending ? pressedGhostButtonStyle : ghostButtonStyle} type="button">{isPending ? 'Removing...' : 'Remove'}</button>
+      <button className={isPending ? 'button-soft' : 'button-ghost'} disabled={isPending} onClick={() => void removeQuestion(planId, question.questionId, setError, setPendingAction, setSelectedPlan, token)} style={isPending ? pressedGhostButtonStyle : ghostButtonStyle} type="button">{isPending ? t('plans.removingQuestion') : t('plans.removeQuestion')}</button>
     </article>
   );
 }

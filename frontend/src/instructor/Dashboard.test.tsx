@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/preact';
 import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { I18nProvider, LanguageSelector } from '../common/i18n';
 import { Dashboard } from './Dashboard';
 
 const authState = { roomCode: null as string | null, token: null as string | null };
@@ -90,5 +91,19 @@ describe('Dashboard', () => {
     expect(await screen.findByRole('button', { name: 'Login with Google' })).toBeInTheDocument();
     expect(clearInstructorTokenMock).toHaveBeenCalledTimes(1);
     expect(mountButtonMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('switches dashboard copy to spanish and persists it', async () => {
+    render(<I18nProvider><LanguageSelector /><Dashboard /></I18nProvider>);
+
+    expect(screen.getByText('Instructor Dashboard')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.input(screen.getByRole('combobox'), { currentTarget: { value: 'es' }, target: { value: 'es' } });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('Panel del instructor')).toBeInTheDocument();
+    expect(window.localStorage.getItem('cp.language')).toBe('es');
   });
 });

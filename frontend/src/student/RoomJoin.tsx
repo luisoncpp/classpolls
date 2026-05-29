@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 
+import { useI18n } from '../common/i18n';
 import { SessionPollingController } from '../common/SessionPollingController';
 import { getStudentId } from '../common/identity';
 import { PublicSession, getActiveQuestion, getCountdownMs, isPollError } from '../common/session';
@@ -7,6 +8,7 @@ import { Grid } from './Grid';
 import { VoteDispatcher } from './Private/VoteDispatcher';
 
 export function RoomJoin() {
+  const { t } = useI18n();
   const [draftRoomCode, setDraftRoomCode] = useState('');
   const [joinedRoomCode, setJoinedRoomCode] = useState('');
   const [session, setSession] = useState<PublicSession | null>(null);
@@ -16,39 +18,34 @@ export function RoomJoin() {
   const dispatcherRef = useRef<VoteDispatcher | null>(null);
   const expiryTimerRef = useRef<number | null>(null);
 
-  useEffect(() => startRoomPolling(joinedRoomCode, controllerRef, dispatcherRef, expiryTimerRef, setJoinError, setRevision, setSession), [joinedRoomCode]);
+  useEffect(() => startRoomPolling(joinedRoomCode, controllerRef, dispatcherRef, expiryTimerRef, t('student.roomNotFound'), setJoinError, setRevision, setSession), [joinedRoomCode, t]);
+
+  const handleSubmit = (event: Event) => {
+    event.preventDefault();
+    const normalizedRoomCode = draftRoomCode.trim().toUpperCase();
+    if (!normalizedRoomCode) return setJoinError(t('student.roomCodeRequired'));
+    setJoinError(null);
+    setJoinedRoomCode(normalizedRoomCode);
+  };
 
   return (
     <main className="app-shell join-shell" style={layoutStyle}>
       <section className="hero-panel" style={heroPanelStyle}>
-        <p style={eyebrowStyle}>Live classroom polling</p>
-        <h1 style={titleStyle}>Join in seconds and answer from any screen.</h1>
-        <p style={subtitleStyle}>Enter the room code from your instructor to submit answers in real time without pinching or fighting the layout on mobile.</p>
-        <form className="responsive-form" onSubmit={(event) => joinRoom(event, draftRoomCode, setJoinError, setJoinedRoomCode)}>
+        <p style={eyebrowStyle}>{t('student.liveClassroomPolling')}</p>
+        <h1 style={titleStyle}>{t('student.title')}</h1>
+        <p style={subtitleStyle}>{t('student.subtitle')}</p>
+        <form className="responsive-form" onSubmit={handleSubmit}>
           <input onInput={(event) => setDraftRoomCode((event.currentTarget as HTMLInputElement).value.toUpperCase())} placeholder="ABCD" style={inputStyle} value={draftRoomCode} />
-          <button className="button-primary" style={primaryButtonStyle} type="submit">Join room</button>
+          <button className="button-primary" style={primaryButtonStyle} type="submit">{t('student.joinRoom')}</button>
         </form>
-        {joinedRoomCode ? <p style={connectedStyle}>Connected room: <strong className="mono-text">{joinedRoomCode}</strong></p> : null}
+        {joinedRoomCode ? <p style={connectedStyle}>{t('student.connectedRoom')} <strong className="mono-text">{joinedRoomCode}</strong></p> : null}
         {joinError ? <p style={errorStyle}>{joinError}</p> : null}
       </section>
       <section className="surface-panel" style={panelStyle}>
-        {session ? <Grid onVoteError={setJoinError} session={session} voteDispatcher={dispatcherRef.current} /> : <p>Join a room to start polling.</p>}
+        {session ? <Grid onVoteError={setJoinError} session={session} voteDispatcher={dispatcherRef.current} /> : <p>{t('student.joinToStart')}</p>}
       </section>
     </main>
   );
-}
-
-function joinRoom(
-  event: Event,
-  draftRoomCode: string,
-  setJoinError: (value: string | null) => void,
-  setJoinedRoomCode: (value: string) => void
-) {
-  event.preventDefault();
-  const normalizedRoomCode = draftRoomCode.trim().toUpperCase();
-  if (!normalizedRoomCode) return setJoinError('Room code is required');
-  setJoinError(null);
-  setJoinedRoomCode(normalizedRoomCode);
 }
 
 function startRoomPolling(
@@ -56,6 +53,7 @@ function startRoomPolling(
   controllerRef: preact.RefObject<SessionPollingController | null>,
   dispatcherRef: preact.RefObject<VoteDispatcher | null>,
   expiryTimerRef: preact.RefObject<number | null>,
+  roomNotFoundMessage: string,
   setJoinError: (value: string | null) => void,
   setRevision: (value: number | ((current: number) => number)) => void,
   setSession: (value: PublicSession | null) => void
@@ -65,7 +63,7 @@ function startRoomPolling(
   if (!joinedRoomCode) return;
   const studentId = getStudentId();
   dispatcherRef.current = new VoteDispatcher(joinedRoomCode, studentId, () => setRevision((current) => current + 1));
-  const controller = new SessionPollingController(joinedRoomCode, (update) => handleUpdate(controller, dispatcherRef.current, expiryTimerRef, setJoinError, setSession, update), studentId);
+  const controller = new SessionPollingController(joinedRoomCode, (update) => handleUpdate(controller, dispatcherRef.current, expiryTimerRef, roomNotFoundMessage, setJoinError, setSession, update), studentId);
   controllerRef.current = controller;
   controller.pollNow();
   controller.startPolling();
@@ -76,12 +74,13 @@ function handleUpdate(
   controller: SessionPollingController,
   dispatcher: VoteDispatcher | null,
   expiryTimerRef: preact.RefObject<number | null>,
+  roomNotFoundMessage: string,
   setJoinError: (value: string | null) => void,
   setSession: (value: PublicSession | null) => void,
   update: PublicSession | { pollError: { status: number } }
 ) {
   if (isPollError(update)) {
-    if (update.pollError.status === 404) setJoinError('Room not found');
+    if (update.pollError.status === 404) setJoinError(roomNotFoundMessage);
     if (update.pollError.status === 404) setSession(null);
     if (update.pollError.status === 404) controller.stopPolling();
     return;

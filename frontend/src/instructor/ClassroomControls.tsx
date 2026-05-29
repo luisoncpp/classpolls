@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
 
 import { getErrorMessage, requestJson } from '../common/apiClient';
+import { useI18n } from '../common/i18n';
 import { StatsView } from './Private/StatsView';
 import { QuestionEditor } from './Private/QuestionEditor';
-import { DEFAULT_DRAFT, QuestionDraft, createDraftFromTemplate, parseDraft } from './Private/questionDraft';
+import { QuestionDraft, createDraftFromTemplate, getDefaultDraft, parseDraft } from './Private/questionDraft';
 
 type SessionQuestion = {
   choices: string[];
@@ -28,7 +29,8 @@ type ClassroomControlsProps = {
 };
 
 export function ClassroomControls({ onRoomClosed, roomCode, token }: ClassroomControlsProps) {
-  const [draft, setDraft] = useState<QuestionDraft>(DEFAULT_DRAFT);
+  const { language, t } = useI18n();
+  const [draft, setDraft] = useState<QuestionDraft>(() => getDefaultDraft(language));
   const [editorError, setEditorError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
@@ -42,39 +44,39 @@ export function ClassroomControls({ onRoomClosed, roomCode, token }: ClassroomCo
     <section style={layoutStyle}>
       <header className="hero-panel action-row" style={heroStyle}>
         <div>
-          <p style={eyebrowStyle}>Live room</p>
+          <p style={eyebrowStyle}>{t('classroom.liveRoom')}</p>
           <h2 style={heroTitleStyle}>{roomCode}</h2>
           <p className="mono-text" style={linkStyle}>{window.location.origin}/overlay/{roomCode}</p>
         </div>
-        <button className={pendingAction === 'close-room' ? 'button-soft' : 'button-ghost'} disabled={pendingAction === 'close-room'} onClick={() => void closeRoom(roomCode, onRoomClosed, setError, setPendingAction, token)} style={getActionButtonStyle(pendingAction === 'close-room', true)} type="button">{pendingAction === 'close-room' ? 'Closing...' : 'Close room'}</button>
+        <button className={pendingAction === 'close-room' ? 'button-soft' : 'button-ghost'} disabled={pendingAction === 'close-room'} onClick={() => void closeRoom(roomCode, onRoomClosed, setError, setPendingAction, token)} style={getActionButtonStyle(pendingAction === 'close-room', true)} type="button">{pendingAction === 'close-room' ? t('classroom.closingRoom') : t('classroom.closeRoom')}</button>
       </header>
       {error ? <p style={errorStyle}>{error}</p> : null}
       <section className="surface-panel" style={panelStyle}>
         <div style={panelHeaderStyle}>
           <div>
-            <p style={eyebrowStyle}>Queue</p>
-            <h3 style={sectionTitleStyle}>Questions</h3>
+            <p style={eyebrowStyle}>{t('classroom.queue')}</p>
+            <h3 style={sectionTitleStyle}>{t('classroom.questions')}</h3>
           </div>
-          <span className="status-pill" style={countBadgeStyle}>{session?.questions.length ?? 0} loaded</span>
+          <span className="status-pill" style={countBadgeStyle}>{t('classroom.loadedCount', { count: session?.questions.length ?? 0 })}</span>
         </div>
-        {isLoadingSession && !hasSession ? <p className="loading-indicator" style={loadingStyle}>Loading questions...</p> : null}
-        {session?.questions.length ? <div style={questionGridStyle}>{session.questions.map((question) => renderQuestionCard(question, pendingAction, roomCode, setError, setPendingAction, setSession, token))}</div> : null}
-        {!isLoadingSession && hasSession && session.questions.length === 0 ? <p style={emptyStateStyle}>No questions launched yet. Use the custom question editor below to push the first prompt live.</p> : null}
+        {isLoadingSession && !hasSession ? <p className="loading-indicator" style={loadingStyle}>{t('classroom.loadingQuestions')}</p> : null}
+        {session?.questions.length ? <div style={questionGridStyle}>{session.questions.map((question) => renderQuestionCard(question, pendingAction, roomCode, setError, setPendingAction, setSession, token, t))}</div> : null}
+        {!isLoadingSession && hasSession && session.questions.length === 0 ? <p style={emptyStateStyle}>{t('classroom.noQuestionsYet')}</p> : null}
       </section>
       <section style={twoColumnStyle}>
         <section className="surface-panel" style={panelStyle}>
           <QuestionEditor
-            actionLabel="Launch custom question"
+            actionLabel={t('classroom.launchCustomQuestion')}
             draft={draft}
             error={editorError}
             onChange={setDraft}
-            onSubmit={(event) => void createCustomQuestion(event, draft, roomCode, setDraft, setEditorError, setError, setPendingAction, setSession, token)}
-            onTemplateChange={(templateId) => setDraft(createDraftFromTemplate(templateId))}
+            onSubmit={(event) => void createCustomQuestion(event, draft, roomCode, language, setDraft, setEditorError, setError, setPendingAction, setSession, token, t)}
+            onTemplateChange={(templateId) => setDraft(createDraftFromTemplate(templateId, language))}
             pending={pendingAction === 'custom-question'}
-            title="Custom question"
+            title={t('classroom.customQuestion')}
           />
         </section>
-        <section className="surface-panel" style={panelStyle}>{isLoadingSession && !hasSession ? <p className="loading-indicator" style={loadingStyle}>Loading stats...</p> : <StatsView question={activeQuestion} />}</section>
+        <section className="surface-panel" style={panelStyle}>{isLoadingSession && !hasSession ? <p className="loading-indicator" style={loadingStyle}>{t('classroom.loadingStats')}</p> : <StatsView question={activeQuestion} />}</section>
       </section>
     </section>
   );
@@ -105,15 +107,15 @@ async function closeRoom(roomCode: string, onRoomClosed: () => void, setError: (
   }
 }
 
-async function createCustomQuestion(event: Event, draft: QuestionDraft, roomCode: string, setDraft: (value: QuestionDraft) => void, setEditorError: (value: string | null) => void, setError: (value: string | null) => void, setPendingAction: (value: string | null) => void, setSession: (value: SessionStats | null) => void, token: string) {
+async function createCustomQuestion(event: Event, draft: QuestionDraft, roomCode: string, language: 'en' | 'es', setDraft: (value: QuestionDraft) => void, setEditorError: (value: string | null) => void, setError: (value: string | null) => void, setPendingAction: (value: string | null) => void, setSession: (value: SessionStats | null) => void, token: string, t: (key: string, values?: Record<string, string | number>) => string) {
   event.preventDefault();
   let releasedPending = false;
   const parsed = parseDraft(draft);
-  if ('error' in parsed) return setEditorError(parsed.error);
+  if ('error' in parsed) return setEditorError(t(parsed.error));
   try {
     setPendingAction('custom-question');
     await requestJson(`/api/sessions/${roomCode}/questions/custom`, { body: { ...parsed, activate: true }, method: 'POST', token });
-    setDraft(DEFAULT_DRAFT);
+    setDraft(getDefaultDraft(language));
     setEditorError(null);
     setPendingAction(null);
     releasedPending = true;
@@ -139,9 +141,9 @@ async function loadStats(roomCode: string, token: string, setError: (value: stri
   }
 }
 
-function renderQuestionCard(question: SessionQuestion, pendingAction: string | null, roomCode: string, setError: (value: string | null) => void, setPendingAction: (value: string | null) => void, setSession: (value: SessionStats | null) => void, token: string) {
+function renderQuestionCard(question: SessionQuestion, pendingAction: string | null, roomCode: string, setError: (value: string | null) => void, setPendingAction: (value: string | null) => void, setSession: (value: SessionStats | null) => void, token: string, t: (key: string, values?: Record<string, string | number>) => string) {
   const isPending = pendingAction === `activate-${question.questionId}`;
-  return <article className="interactive-card split-card" key={question.questionId} style={cardStyle}><div style={cardBodyStyle}><strong>{question.text}</strong><p style={mutedStyle}>{question.choices.join(' / ')}</p><p style={metaStyle}>{toQuestionMeta(question)}</p></div><button className={question.isActive || isPending ? 'button-soft' : 'button-primary'} disabled={isPending} onClick={() => void activateQuestion(question.questionId, roomCode, setError, setPendingAction, setSession, token)} style={getActionButtonStyle(question.isActive || isPending, false)} type="button">{isPending ? 'Launching...' : question.isActive ? 'Active now' : 'Go live'}</button></article>;
+  return <article className="interactive-card split-card" key={question.questionId} style={cardStyle}><div style={cardBodyStyle}><strong>{question.text}</strong><p style={mutedStyle}>{question.choices.join(' / ')}</p><p style={metaStyle}>{toQuestionMeta(question, t)}</p></div><button className={question.isActive || isPending ? 'button-soft' : 'button-primary'} disabled={isPending} onClick={() => void activateQuestion(question.questionId, roomCode, setError, setPendingAction, setSession, token)} style={getActionButtonStyle(question.isActive || isPending, false)} type="button">{isPending ? t('classroom.launchingQuestion') : question.isActive ? t('classroom.activeNow') : t('classroom.goLive')}</button></article>;
 }
 
 function startStatsPolling(roomCode: string, token: string, onRoomClosed: () => void, setError: (value: string | null) => void, setIsLoadingSession: (value: boolean) => void, setSession: (value: SessionStats | null) => void) {
@@ -162,10 +164,10 @@ function startStatsPolling(roomCode: string, token: string, onRoomClosed: () => 
   };
 }
 
-function toQuestionMeta(question: SessionQuestion) {
-  const parts = [`${question.choices.length} choices`];
-  if (typeof question.timeLimit === 'number') parts.push(`${question.timeLimit}s timer`);
-  if (typeof question.correctChoiceIndex === 'number') parts.push('answer ready');
+function toQuestionMeta(question: SessionQuestion, t: (key: string, values?: Record<string, string | number>) => string) {
+  const parts = [t('classroom.questionCount', { count: question.choices.length })];
+  if (typeof question.timeLimit === 'number') parts.push(t('classroom.timer', { seconds: question.timeLimit }));
+  if (typeof question.correctChoiceIndex === 'number') parts.push(t('classroom.answerReady'));
   return parts.join(' • ');
 }
 

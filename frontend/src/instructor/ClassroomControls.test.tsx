@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/preact';
 import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { I18nProvider } from '../common/i18n';
 import { ClassroomControls } from './ClassroomControls';
 
 const { requestJsonMock } = vi.hoisted(() => ({ requestJsonMock: vi.fn() }));
@@ -24,7 +25,7 @@ describe('ClassroomControls', () => {
     requestJsonMock.mockResolvedValueOnce(session);
     requestJsonMock.mockResolvedValue(session);
 
-    const view = render(<ClassroomControls onRoomClosed={vi.fn()} roomCode="ROOM" token="token" />);
+    const view = render(<I18nProvider><ClassroomControls onRoomClosed={vi.fn()} roomCode="ROOM" token="token" /></I18nProvider>);
 
     await act(async () => {
       await Promise.resolve();
@@ -55,7 +56,7 @@ describe('ClassroomControls', () => {
       })
     );
 
-    const view = render(<ClassroomControls onRoomClosed={vi.fn()} roomCode="ROOM" token="token" />);
+    const view = render(<I18nProvider><ClassroomControls onRoomClosed={vi.fn()} roomCode="ROOM" token="token" /></I18nProvider>);
 
     await act(async () => {
       await Promise.resolve();

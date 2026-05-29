@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 
+import { useI18n } from '../common/i18n';
 import { SessionPollingController } from '../common/SessionPollingController';
 import { PublicSession, getActiveQuestion, getCountdownMs, getDisplayQuestion, isPollError, isQuestionExpired } from '../common/session';
 
@@ -8,17 +9,18 @@ type OBSOverlayProps = {
 };
 
 export function OBSOverlay({ roomCode }: OBSOverlayProps) {
+  const { t } = useI18n();
   const [session, setSession] = useState<PublicSession | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const controllerRef = useRef<SessionPollingController | null>(null);
   const expiryTimerRef = useRef<number | null>(null);
 
-  useEffect(() => startOverlayPolling(roomCode, controllerRef, expiryTimerRef, setError, setSession), [roomCode]);
+  useEffect(() => startOverlayPolling(roomCode, controllerRef, expiryTimerRef, t('overlay.roomNotFound'), setError, setSession), [roomCode, t]);
   useEffect(() => startClock(setNow), []);
 
   if (error) return <main style={overlayLayoutStyle}><p>{error}</p></main>;
-  if (!session) return <main style={overlayLayoutStyle}><p>Waiting for room data...</p></main>;
+  if (!session) return <main style={overlayLayoutStyle}><p>{t('overlay.waitingForRoomData')}</p></main>;
 
   const activeQuestion = getActiveQuestion(session);
   const displayQuestion = getDisplayQuestion(session);
@@ -31,11 +33,11 @@ export function OBSOverlay({ roomCode }: OBSOverlayProps) {
       <section style={frameStyle}>
         <header style={headerStyle}>
           <div style={headerRowStyle}>
-            <p style={badgeStyle}>Room {session.roomCode}</p>
+            <p style={badgeStyle}>{t('overlay.roomBadge', { roomCode: session.roomCode })}</p>
             {countdownMs !== null && activeQuestion ? <p style={countdownStyle}>{Math.ceil(countdownMs / 1000)}s</p> : null}
           </div>
-          <h1 style={questionTitleStyle}>{displayQuestion?.text ?? 'Waiting for the next question...'}</h1>
-          <p style={statusStyle}>{revealCorrectAnswer ? 'Answer revealed' : activeQuestion ? 'Voting is live' : 'Waiting for the instructor'}</p>
+          <h1 style={questionTitleStyle}>{displayQuestion?.text ?? t('overlay.waitingNextQuestion')}</h1>
+          <p style={statusStyle}>{revealCorrectAnswer ? t('overlay.answerRevealed') : activeQuestion ? t('overlay.votingLive') : t('overlay.waitingForInstructor')}</p>
         </header>
         <section style={choicesStyle}>
         {(displayQuestion?.choices ?? []).map((choice, index) => renderOverlayChoice(choice, revealCorrectAnswer ? displayQuestion?.correctChoiceIndex : undefined, index))}
@@ -63,11 +65,12 @@ function startOverlayPolling(
   roomCode: string,
   controllerRef: preact.RefObject<SessionPollingController | null>,
   expiryTimerRef: preact.RefObject<number | null>,
+  roomNotFoundMessage: string,
   setError: (value: string | null) => void,
   setSession: (value: PublicSession | null) => void
 ) {
   controllerRef.current?.stopPolling();
-  const controller = new SessionPollingController(roomCode, (update) => handleOverlayUpdate(controller, expiryTimerRef, setError, setSession, update));
+  const controller = new SessionPollingController(roomCode, (update) => handleOverlayUpdate(controller, expiryTimerRef, roomNotFoundMessage, setError, setSession, update));
   controllerRef.current = controller;
   controller.pollNow();
   controller.startPolling();
@@ -77,12 +80,13 @@ function startOverlayPolling(
 function handleOverlayUpdate(
   controller: SessionPollingController,
   expiryTimerRef: preact.RefObject<number | null>,
+  roomNotFoundMessage: string,
   setError: (value: string | null) => void,
   setSession: (value: PublicSession | null) => void,
   update: PublicSession | { pollError: { status: number } }
 ) {
   if (isPollError(update)) {
-    if (update.pollError.status === 404) setError('Room not found');
+    if (update.pollError.status === 404) setError(roomNotFoundMessage);
     if (update.pollError.status === 404) controller.stopPolling();
     return;
   }

@@ -16,6 +16,15 @@
 - `clearInstructorToken()` is called automatically on any `401` response from protected endpoints.
 - The Google Identity Services flow is handled by `GoogleAuth` (class in `instructor/Private/GoogleAuth.ts`).
 
+## Frontend Language Selection
+
+- `common/i18n/index.ts` exposes the `I18nProvider` and `useI18n()` hook for all Preact views.
+- Supported UI languages are English (`en`) and Spanish (`es`).
+- The initial language comes from `cp.language` in `localStorage`; if absent, the provider falls back to browser detection (`navigator.language`) and then English.
+- Non-overlay routes render a shared language selector from `main.tsx`.
+- The overlay route does not render the selector, but it still uses the persisted or auto-detected language.
+- Instructor-side draft templates also localize their default choice text (`Yes/No`, `Option A/B`) through `questionDraft.ts`.
+
 ## SessionPollingController
 
 A class-based polling loop used by student and overlay views. Located in `common/SessionPollingController.ts`.

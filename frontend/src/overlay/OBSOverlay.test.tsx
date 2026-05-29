@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/preact';
 import { describe, expect, it, vi } from 'vitest';
 
+import { I18nProvider } from '../common/i18n';
 import { OBSOverlay } from './OBSOverlay';
 
 const { pollNowMock, startPollingMock, stopPollingMock } = vi.hoisted(() => ({
@@ -38,7 +39,7 @@ vi.mock('../common/SessionPollingController', () => ({
 
 describe('OBSOverlay', () => {
   it('does not show queued questions before activation', async () => {
-    render(<OBSOverlay roomCode="ROOM" />);
+    render(<I18nProvider><OBSOverlay roomCode="ROOM" /></I18nProvider>);
 
     expect(await screen.findByText('Waiting for the next question...')).toBeInTheDocument();
     expect(screen.queryByText('Queued first question')).not.toBeInTheDocument();

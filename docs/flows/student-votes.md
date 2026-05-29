@@ -9,12 +9,14 @@ Student enters a room code on the home page and clicks "Join room".
 ## Sequence
 
 1. **Identity bootstrap**
-   - `getStudentId()` either reads `cp.studentId` from `localStorage` or generates a new UUIDv4.
-   - No server registration — the id is sent with every request.
+    - `getStudentId()` either reads `cp.studentId` from `localStorage` or generates a new UUIDv4.
+    - `I18nProvider` also reads `cp.language` from `localStorage`; if absent, it falls back to the browser locale
+    - No server registration — the id is sent with every request.
 
 2. **Join room**
-   - Student types room code → clicks "Join room"
-   - `joinedRoomCode` state updates → `useEffect` triggers `startRoomPolling()`
+    - Student types room code → clicks "Join room"
+    - Student can switch between English and Spanish from the shared selector before or after joining
+    - `joinedRoomCode` state updates → `useEffect` triggers `startRoomPolling()`
    - `SessionPollingController` created with `roomCode`, `onUpdate` callback, and `studentId`
    - `pollNow()` fires immediately, then `startPolling()` begins 3s interval
 

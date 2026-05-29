@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { clearInstructorRoomCode, clearInstructorToken, getErrorMessage, getInstructorRoomCode, getInstructorToken, requestJson, setInstructorRoomCode, setInstructorToken } from '../common/apiClient';
+import { useI18n } from '../common/i18n';
 import { ClassroomControls } from './ClassroomControls';
 import { GoogleAuth } from './Private/GoogleAuth';
 import { PlanManager } from './Private/PlanManager';
@@ -12,6 +13,7 @@ type SessionResponse = {
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
 
 export function Dashboard() {
+  const { t } = useI18n();
   const [token, setToken] = useState<string | null>(() => getInstructorToken());
   const [roomCode, setRoomCode] = useState<string | null>(() => getInstructorRoomCode());
   const [error, setError] = useState<string | null>(null);
@@ -27,16 +29,16 @@ export function Dashboard() {
     <main className="app-shell dashboard-shell" style={layoutStyle}>
       <section className="hero-panel dashboard-hero-layout" style={heroStyle}>
         <div style={heroCopyStyle}>
-          <p style={eyebrowStyle}>ClassPolls</p>
-          <h1 style={titleStyle}>Instructor Dashboard</h1>
-          <p style={subtitleStyle}>Build question plans, run live sessions, and keep the stream overlay readable on-screen.</p>
+          <p style={eyebrowStyle}>{t('dashboard.classpolls')}</p>
+          <h1 style={titleStyle}>{t('dashboard.instructorDashboard')}</h1>
+          <p style={subtitleStyle}>{t('dashboard.subtitle')}</p>
         </div>
         <div style={heroMetaStyle}>
-          {!token ? <div key="signed-out" ref={googleButtonRef} /> : <div key="signed-in" style={signedInGroupStyle}><p className="status-pill" style={signedInStyle}>Signed in and ready.</p><button className="button-ghost" onClick={() => logout(setError, setRoomCode, setToken)} style={logoutButtonStyle} type="button">Log out</button></div>}
+          {!token ? <div key="signed-out" ref={googleButtonRef} /> : <div key="signed-in" style={signedInGroupStyle}><p className="status-pill" style={signedInStyle}>{t('dashboard.signedInReady')}</p><button className="button-ghost" onClick={() => logout(setError, setRoomCode, setToken)} style={logoutButtonStyle} type="button">{t('dashboard.logOut')}</button></div>}
           <div style={featureListStyle}>
-            <span style={featurePillStyle}>Plans</span>
-            <span style={featurePillStyle}>Live control</span>
-            <span style={featurePillStyle}>Overlay ready</span>
+            <span style={featurePillStyle}>{t('dashboard.plans')}</span>
+            <span style={featurePillStyle}>{t('dashboard.liveControl')}</span>
+            <span style={featurePillStyle}>{t('dashboard.overlayReady')}</span>
           </div>
         </div>
         {error ? <p style={errorStyle}>{error}</p> : null}

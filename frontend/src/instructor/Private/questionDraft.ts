@@ -1,9 +1,13 @@
+import { Language } from '../../common/i18n';
+
 export type QuestionDraft = {
   choicesText: string;
   correctChoiceIndex: string;
   text: string;
   timeLimit: string;
 };
+
+type QuestionDraftErrorKey = 'questionDraft.correctAnswerMismatch' | 'questionDraft.needTextAndChoices' | 'questionDraft.positiveTimeLimit';
 
 type QuestionTemplate = {
   choicesText: string;
@@ -17,16 +21,19 @@ type ParsedDraft = {
   timeLimit?: number;
 };
 
-const TEMPLATE_MAP: Record<string, QuestionTemplate> = {
-  abcd: { choicesText: 'A\nB\nC\nD', timeLimit: '30' },
-  confidence: { choicesText: '1\n2\n3\n4\n5', timeLimit: '20' },
-  yesno: { choicesText: 'Yes\nNo', timeLimit: '15' }
+const TEMPLATE_MAP: Record<string, Record<Language, QuestionTemplate>> = {
+  abcd: { en: { choicesText: 'A\nB\nC\nD', timeLimit: '30' }, es: { choicesText: 'A\nB\nC\nD', timeLimit: '30' } },
+  confidence: { en: { choicesText: '1\n2\n3\n4\n5', timeLimit: '20' }, es: { choicesText: '1\n2\n3\n4\n5', timeLimit: '20' } },
+  custom: { en: { choicesText: 'Option A\nOption B', timeLimit: '30' }, es: { choicesText: 'Opcion A\nOpcion B', timeLimit: '30' } },
+  yesno: { en: { choicesText: 'Yes\nNo', timeLimit: '15' }, es: { choicesText: 'Si\nNo', timeLimit: '15' } }
 };
 
-export const DEFAULT_DRAFT = createDraftFromTemplate('custom');
+export function getDefaultDraft(language: Language) {
+  return createDraftFromTemplate('custom', language);
+}
 
-export function createDraftFromTemplate(templateId: string): QuestionDraft {
-  const template = TEMPLATE_MAP[templateId] ?? { choicesText: 'Option A\nOption B', timeLimit: '30' };
+export function createDraftFromTemplate(templateId: string, language: Language): QuestionDraft {
+  const template = TEMPLATE_MAP[templateId]?.[language] ?? TEMPLATE_MAP.custom[language];
   return {
     choicesText: template.choicesText,
     correctChoiceIndex: '',
@@ -35,17 +42,17 @@ export function createDraftFromTemplate(templateId: string): QuestionDraft {
   };
 }
 
-export function parseDraft(draft: QuestionDraft): ParsedDraft | { error: string } {
+export function parseDraft(draft: QuestionDraft): ParsedDraft | { error: QuestionDraftErrorKey } {
   const text = draft.text.trim();
   const choices = getDraftChoices(draft);
-  if (!text || choices.length < 2) return { error: 'Questions need text and at least two choices' };
+  if (!text || choices.length < 2) return { error: 'questionDraft.needTextAndChoices' };
   const timeLimit = parseNumber(draft.timeLimit);
   if (timeLimit !== undefined && timeLimit <= 0) {
-    return { error: 'Use a time limit greater than 0 seconds' };
+    return { error: 'questionDraft.positiveTimeLimit' };
   }
   const correctChoiceIndex = parseNumber(draft.correctChoiceIndex);
   if (correctChoiceIndex !== undefined && (correctChoiceIndex < 0 || correctChoiceIndex >= choices.length)) {
-    return { error: 'Correct answer must match one of the listed choices' };
+    return { error: 'questionDraft.correctAnswerMismatch' };
   }
   return {
     ...(correctChoiceIndex === undefined ? {} : { correctChoiceIndex }),
